@@ -5,7 +5,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class Erply extends Command
+class Product extends Command
 {
 
     protected $updatedProducts = array();
@@ -19,7 +19,7 @@ class Erply extends Command
 
     protected function configure()
     {
-        $this->setName("estdevs:importproduct");
+        $this->setName("acodesh:importproduct");
         $this->setDescription("Download Products and update in magento.");
         parent::configure();
     }

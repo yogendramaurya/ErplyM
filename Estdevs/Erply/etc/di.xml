@@ -3,7 +3,8 @@
     <type name="Magento\Framework\Console\CommandList">
         <arguments>
             <argument name="commands" xsi:type="array">
-                <item name="estdevs_erply" xsi:type="object">Estdevs\Erply\Command\Erply</item>
+                <item name="estdevs_erply" xsi:type="object">Estdevs\Erply\Command\Product</item>
+                <item name="estdevs_erply_customer" xsi:type="object">Estdevs\Erply\Command\Customer</item>
             </argument>
         </arguments>
     </type>
