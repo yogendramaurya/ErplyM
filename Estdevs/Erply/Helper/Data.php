@@ -14,18 +14,43 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     protected $erply_username;
     protected $erply_password;
     protected $estmessage;
-
+    protected $erplyApi;
     public function __construct(
-        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
-        \Magento\Customer\Model\Session $customerSession
+        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+      //  \Magento\Customer\Model\Session $customerSession
     ) {
         $this->_scopeConfig = $scopeConfig;
-        $this->customerSession = $customerSession;
+        // $this->customerSession = $customerSession;
         $this->_isEnabled =  $this->_scopeConfig->getValue(self::XML_ERPLY_CONFIG_ENABLE);
         $this->erply_customercode =  $this->_scopeConfig->getValue(self::XML_ERPLY_CUSTOMER_CODE);
         $this->erply_username =  $this->_scopeConfig->getValue(self::XML_ERPLY_USERNAME);
         $this->erply_password =  $this->_scopeConfig->getValue(self::XML_ERPLY_PASSWORD);
+
+        // $this->erplyApi = new EAPI();
     }
+
+    public function getErply()
+    {
+       // $this->erplyApi = new EAPI();
+    }
+
+    public function getProductsApi()
+    {
+        $api = new EAPI();
+        $api->clientCode = 501692;
+        $api->username = "devopsheros@gmail.com";
+        $api->password = "Admin123#";
+        $api->url = "https://".$api->clientCode.".erply.com/api/";
+
+        // Get client groups from API
+        // No input parameters are needed
+        $result = $api->sendRequest("getProducts", array());
+
+        // Default output format is JSON, so we'll decode it into a PHP array
+       return $output = json_decode($result, true);
+    }
+
+
 
     public function isenable()
     {
@@ -45,8 +70,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     {
         return $this->erply_password;
     }
-    public function isCustomerlogin()
-    {
-        return $this->customerSession->isLoggedIn()?true:false;
-    }
+
 }
+
+

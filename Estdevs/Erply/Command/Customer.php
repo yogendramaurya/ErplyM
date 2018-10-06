@@ -5,15 +5,16 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+
 class Customer extends Command
 {
 
     protected $updatedProducts = array();
     protected $skipProducts = array();
-    private $state;
+    private $helper;
 
-    public function __construct(\Magento\Framework\App\State $state) {
-        $this->state = $state;
+    public function __construct(\Estdevs\Erply\Helper\Data $helper) {
+        $this->helper = $helper;
         parent::__construct();
     }
 
@@ -26,8 +27,23 @@ class Customer extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
+       //$this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
         $output->writeln("connecting with erply apis........");
 
+        require "EAPI.class.php";
+        $api = new EAPI();
+        $api->clientCode = 501692;
+        $api->username = "devopsheros@gmail.com";
+        $api->password = "Admin123#";
+        $api->url = "https://".$api->clientCode.".erply.com/api/";
+
+        // Get client groups from API
+        // No input parameters are needed
+        $result = $api->sendRequest("getProducts", array());
+
+
+
+        //$data = $this->helper->getProductsApi();
+        print_r($result);
     }
 } 
