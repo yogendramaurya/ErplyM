@@ -39,11 +39,12 @@ class Customer extends Command
 
         // Get client groups from API
         // No input parameters are needed
-        $result = $api->sendRequest("getProducts", array());
+        $result = $api->sendRequest("getProducts", array('pageNo' =>2, 'recordsOnPage'=>1));
 
+        $jresutl  = json_decode($result, true);
 
 
         //$data = $this->helper->getProductsApi();
-        print_r($result);
+        print_r($jresutl);
     }
 } 

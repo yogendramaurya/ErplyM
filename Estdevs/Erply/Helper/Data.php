@@ -42,12 +42,14 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         $api->password = "Admin123#";
         $api->url = "https://".$api->clientCode.".erply.com/api/";
 
+        return $api;
+
         // Get client groups from API
         // No input parameters are needed
-        $result = $api->sendRequest("getProducts", array());
+       // $result = $api->sendRequest("getProducts", array());
 
         // Default output format is JSON, so we'll decode it into a PHP array
-       return $output = json_decode($result, true);
+       //return $output = json_decode($result, true);
     }
 
 
