@@ -9,11 +9,17 @@ class Product extends Command
 {
 
     protected $updatedProducts = array();
-    protected $skipProducts = array();
+    protected $skipProducts = 0;
     private $state;
+    protected $success = 0;
+    protected $totalRecords;
+    private $_objectManager;
 
-    public function __construct(\Magento\Framework\App\State $state) {
+    public function __construct(\Magento\Framework\App\State $state,
+                \Magento\Framework\ObjectManagerInterface $objectmanager
+    ) {
         $this->state = $state;
+        $this->_objectManager = $objectmanager;
         parent::__construct();
     }
 
@@ -27,121 +33,119 @@ class Product extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
-        $output->writeln("Analysis of csv start .....");
-        $_csvProducts = $this->readCSV();
-        $_totalProducts = count($_csvProducts);
-        $output->writeln("Total Number of Products :".$_totalProducts);
+      
+        // api object
+        require "EAPI.class.php";
+        $api = new EAPI();
+        $api->clientCode = 501692;
+        $api->username = "devopsheros@gmail.com";
+        $api->password = "Admin123#";
+        $api->url = "https://".$api->clientCode.".erply.com/api/";
 
-        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-        
+        $output->writeln("connecting with erply apis........");
+        //$output->writeln("Import Categories");
 
-        // loop through and import or update products
+        // fetch products
+        $this->summayApi($api);
+        $limit = 100;
+        $pages = ceil($this->totalRecords/$limit);
+        $output->writeln("Erply total products $this->totalRecords .");
 
-       foreach ($_csvProducts as $key => $_csvproduct) {
-           # code...
-
-            // mapping
-           
-
-            if(!isset($_csvproduct[4]) || !isset($_csvproduct[5]) || !isset($_csvproduct[7])) {
-                continue;
-            }
-            $sku = $_csvproduct[4];
-            $name = $_csvproduct[5];
-            $price = $_csvproduct[7];
-            $data = array($sku, $name, $price);
-
-            if ($this->isexists($objectManager, $sku)) {
-                //update
-               $this->updatedProducts++;
-
-            } else {
-                // import
-                $this->importProduct($objectManager, $data);
-            }
-     
-       }
-
-       $countupdated = count($this->updatedProducts);
-       $output->writeln("Updated Products : $countupdated ");
-       $output->writeln("Import Process Completed Successfully.");
+        for ($i=1; $i <= $pages; $i++) { 
+            $this->importProducts($api, array('pageNo' => $i, 'recordsOnPage'=> $limit));
+        }
     }
 
-    protected function isexists($objectManager, $sku)
+    protected function summayApi($api)
     {
-        $product = $objectManager->get('Magento\Catalog\Model\Product');
-        if($product->getIdBySku($sku)) {
+        $result = $api->sendRequest("getProducts", array('pageNo' =>1, 'recordsOnPage'=>1));
+        $summaryResult  = json_decode($result, true);
+        if($summaryResult == null) return false;
+
+        if($summaryResult['status']['responseStatus'] == "ok") {
+            $this->totalRecords = $summaryResult['status']['recordsTotal'];
+        }
+    }
+
+    protected function isexists($sku)
+    {
+        $product = $this->_objectManager->get('Magento\Catalog\Model\Product');
+        if($pp=$product->getIdBySku($sku)) {
+            // $y = $product->load(2065);
+            // print_r($y->getData());
             return true;   
         } 
 
         return false;
     }
     
-    protected function importProduct($objectManager, $importProduct)
+    protected function importProducts($api, $parameters = array())
     {
-        try {  
- 
-            $product = $objectManager->create('\Magento\Catalog\Model\Product');
+        $result = $api->sendRequest("getProducts", $parameters);
+        $summaryResult  = json_decode($result, true);
+        if($summaryResult == null) return false;
+
+        if($summaryResult['status']['responseStatus'] == "ok") {
+            foreach ($summaryResult['records'] as $key => $record) {
+                if($record['active']) {
+                    $this->createProduct($record);
+                } else {
+                    $this->skipProducts++;
+                }               
+            }
+        }
+    }
+
+    public function createProduct($record)
+    {
+        $data = array(
+            'sku' => $record['code'],
+            'name' => $record['name'],
+            'status'=> $record['active'],
+            'length'=> $record['length'],
+            'width'=> $record['width'],
+            'height'=> $record['height'],
+            'weight'=> $record['netWeight'],
+            'description' => $record['description'],
+            'shortdescription' => $record['longdesc'],
+            'price' => $record['cost']
+        );
+
+        if($this->isexists($record['code'])) {
+            // update product
+            return;
+        }
+
+        try {
+            $product = $this->_objectManager->create('\Magento\Catalog\Model\Product');
+            $product->setData($data);
             $product->setWebsiteIds(array(1));
+            $product->setUrlKey(strtotime('now')); 
             $product->setAttributeSetId(4);
             $product->setTypeId('simple');
             $product->setCreatedAt(strtotime('now')); 
-            $product->setName($importProduct[1]); 
-            $product->setSku($importProduct[0]);
-            // $product->setWeight($importProduct[16]);
-            $product->setStatus(1);
-            // $category_id = array(30,24);
-            // $product->setCategoryIds($category_id); 
-            $product->setTaxClassId(0); // (0 - none, 1 - default, 2 - taxable, 4 - shipping)
-            $product->setVisibility(4); // catalog and search visibility
-            // $product->setColor(24);
-            $product->setPrice($importProduct[2]) ;
-            $product->setUrlKey($importProduct[1].strtotime('now')); 
-            // $product->setMetaTitle($importProduct[1]);
-            // $product->setMetaKeyword($importProduct[26]);
-            // $product->setMetaDescription($importProduct[28]);
-            // $product->setDescription($importProduct[27]);
-            // $product->setShortDescription($importProduct[27]);
- 
+            $product->setTaxClassId(0);
+            //$product->setPrice(123) ;
             $product->setStockData(
                 array(
-                'use_config_manage_stock' => 0, 
-                'manage_stock' => 1, // manage stock
-                'min_sale_qty' => 1, // Shopping Cart Minimum Qty Allowed 
-                'max_sale_qty' => 2, // Shopping Cart Maximum Qty Allowed
-                'is_in_stock' => 1, // Stock Availability of product
-                'qty' => 1000
+                    'use_config_manage_stock' => 0, 
+                    'manage_stock' => 1, // manage stock
+                    'min_sale_qty' => 1, // Shopping Cart Minimum Qty Allowed 
+                    'max_sale_qty' => 2, // Shopping Cart Maximum Qty Allowed
+                    'is_in_stock' => 1, // Stock Availability of product
+                    'qty' => 1000
                 )
             );
- 
-            
             $product->save();
+            $this->success++;
             echo ".";
         }
         catch (\Magento\Framework\Exception\NoSuchEntityException $e)
         {
-            echo 'Something failed for product import ' . $importProduct[0] . PHP_EOL;
-            // print_r($e);
+            //echo 'Something failed for product import ' . $importProduct[0] . PHP_EOL;
+            $this->skipProducts++;
             return true;
         }
     }
 
-    protected function readCSV()
-    {
-        $file = 'sample.csv';
-        $arrResult = array();
-        $headers = false;
-        $handle = fopen($file, "r");
-        if (empty($handle) === false) {
-            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                if (!$headers) {
-                    $headers[] = $data;
-                } else {
-                    $arrResult[] = $data;
-                }
-            }
-            fclose($handle);
-        }
-        return $arrResult;
-    }
 } 
