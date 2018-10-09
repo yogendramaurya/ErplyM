@@ -4,23 +4,41 @@ namespace Estdevs\Erply\Command;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+//use Magento\Catalog\Model\Product;
+// use Magento\Framework\App\Filesystem\DirectoryList;
+// use Magento\Framework\Filesystem\Io\File;
 
 class Product extends Command
 {
-
     protected $updatedProducts = array();
     protected $skipProducts = 0;
     private $state;
     protected $success = 0;
     protected $totalRecords;
     private $_objectManager;
+    private $_helperData;
+    protected $directoryList;
 
-    public function __construct(\Magento\Framework\App\State $state,
-                \Magento\Framework\ObjectManagerInterface $objectmanager
-    ) {
-        $this->state = $state;
-        $this->_objectManager = $objectmanager;
-        parent::__construct();
+    /**
+     * File interface
+     *
+     * @var File
+     */
+    protected $file;
+
+    public function __construct(
+        \Magento\Framework\App\State $state,
+        \Magento\Framework\App\Filesystem\DirectoryList $directoryList,
+        \Magento\Framework\Filesystem\Io\File $file,
+        \Estdevs\Erply\Helper\Data $helperData,
+        \Magento\Framework\ObjectManagerInterface $objectmanager
+       ) {
+            $this->state = $state;
+            $this->_objectManager = $objectmanager;
+            $this->_helperData = $helperData;
+            // $this->directoryList = $directoryList;
+            $this->file = $file;
+            parent::__construct();
     }
 
     protected function configure()
@@ -33,20 +51,31 @@ class Product extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
+        $this->_helperData = $this->_objectManager->get('Estdevs\Erply\Helper\Data');
+        $this->directoryList = $this->_objectManager->get('Magento\Framework\App\Filesystem\DirectoryList');
+        if ($this->_helperData->getCustomercode() == null || $this->_helperData->getUsername() == null || $this->_helperData->getPassword() == null) {
+            $output->writeln("Please add correct detail on configuration ...");
+            return;
+        }
       
         // api object
         require "EAPI.class.php";
         $api = new EAPI();
-        $api->clientCode = 501692;
-        $api->username = "devopsheros@gmail.com";
-        $api->password = "Admin123#";
+        $api->clientCode = $this->_helperData->getCustomercode();//501692;
+        $api->username = $this->_helperData->getUsername();//"devopsheros@gmail.com";
+        $api->password = $this->_helperData->getPassword(); //"Admin123#";
         $api->url = "https://".$api->clientCode.".erply.com/api/";
-
         $output->writeln("connecting with erply apis........");
         //$output->writeln("Import Categories");
 
+        try {
+            $this->summayApi($api);
+        } catch (Exception $e) {
+            $output->writeln("$e->getMessage()");
+        }
+
         // fetch products
-        $this->summayApi($api);
+        
         $limit = 100;
         $pages = ceil($this->totalRecords/$limit);
         $output->writeln("Erply total products $this->totalRecords .");
@@ -87,8 +116,24 @@ class Product extends Command
 
         if($summaryResult['status']['responseStatus'] == "ok") {
             foreach ($summaryResult['records'] as $key => $record) {
+                // print_r($record);die();
                 if($record['active']) {
-                    $this->createProduct($record);
+                     switch ($record['type']) {
+                        case 'PRODUCT':
+                            # code...
+                            $this->createProduct($record);
+                            break;
+                        
+                         case 'BUNDLE':
+                            # code...
+                            $this->createProduct($record);
+                            break;
+
+                        default:
+                            # code...
+                            // $this->createProduct($record);
+                            break;
+                    }
                 } else {
                     $this->skipProducts++;
                 }               
@@ -111,10 +156,13 @@ class Product extends Command
             'price' => $record['cost']
         );
 
+         print_r($record);
+
         if($this->isexists($record['code'])) {
             // update product
             return;
         }
+
 
         try {
             $product = $this->_objectManager->create('\Magento\Catalog\Model\Product');
@@ -137,6 +185,12 @@ class Product extends Command
                 )
             );
             $product->save();
+
+            if(isset($record['images'])) {
+                //import
+                $this->createImage($product, $record['images'][0]['largeURL'], true, ['image', 'small_image', 'thumbnail']);
+            }
+
             $this->success++;
             echo ".";
         }
@@ -146,6 +200,36 @@ class Product extends Command
             $this->skipProducts++;
             return true;
         }
+    }
+
+
+    public function createImage($product, $imageUrl, $visible = false, $imageType = [])
+    {
+        /** @var string $tmpDir */
+        $tmpDir = $this->getMediaDirTmpDir();
+        /** create folder if it is not exists */
+        $this->file->checkAndCreateFolder($tmpDir);
+        /** @var string $newFileName */
+        $newFileName = $tmpDir . baseName($imageUrl);
+        /** read file from URL and copy it to the new destination */
+        $result = $this->file->read($imageUrl, $newFileName);
+        if ($result) {
+            /** add saved file to the $product gallery */
+            $product->addImageToMediaGallery($newFileName, $imageType, true, $visible);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Media directory name for the temporary file storage
+     * pub/media/tmp
+     *
+     * @return string
+     */
+    protected function getMediaDirTmpDir()
+    {
+        return $this->directoryList->getPath(DirectoryList::MEDIA) . DIRECTORY_SEPARATOR . 'tmp';
     }
 
 } 
