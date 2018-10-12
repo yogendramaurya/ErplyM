@@ -4,9 +4,6 @@ namespace Estdevs\Erply\Command;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-//use Magento\Catalog\Model\Product;
-// use Magento\Framework\App\Filesystem\DirectoryList;
-// use Magento\Framework\Filesystem\Io\File;
 
 class Product extends Command
 {
@@ -18,6 +15,7 @@ class Product extends Command
     private $_objectManager;
     private $_helperData;
     protected $directoryList;
+    private $updateProducts=0;
 
     /**
      * File interface
@@ -52,7 +50,7 @@ class Product extends Command
     {
         $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
         $this->_helperData = $this->_objectManager->get('Estdevs\Erply\Helper\Data');
-        $this->directoryList = $this->_objectManager->get('Magento\Framework\App\Filesystem\DirectoryList');
+        $this->directoryList = $this->_objectManager->get('\Magento\Framework\App\Filesystem\DirectoryList');
         if ($this->_helperData->getCustomercode() == null || $this->_helperData->getUsername() == null || $this->_helperData->getPassword() == null) {
             $output->writeln("Please add correct detail on configuration ...");
             return;
@@ -75,14 +73,17 @@ class Product extends Command
         }
 
         // fetch products
-        
         $limit = 100;
         $pages = ceil($this->totalRecords/$limit);
-        $output->writeln("Erply total products $this->totalRecords .");
+        $output->writeln("Erply total products : $this->totalRecords");
 
         for ($i=1; $i <= $pages; $i++) { 
             $this->importProducts($api, array('pageNo' => $i, 'recordsOnPage'=> $limit));
         }
+
+        $output->writeln("Erply successfully imported products : $this->success");
+        $output->writeln("Erply skipped products : $this->skipProducts");
+
     }
 
     protected function summayApi($api)
@@ -99,10 +100,8 @@ class Product extends Command
     protected function isexists($sku)
     {
         $product = $this->_objectManager->get('Magento\Catalog\Model\Product');
-        if($pp=$product->getIdBySku($sku)) {
-            // $y = $product->load(2065);
-            // print_r($y->getData());
-            return true;   
+        if($productId = $product->getIdBySku($sku)) {
+            return $productId;   
         } 
 
         return false;
@@ -156,22 +155,29 @@ class Product extends Command
             'price' => $record['cost']
         );
 
-         print_r($record);
 
-        if($this->isexists($record['code'])) {
-            // update product
-            return;
-        }
-
-
-        try {
+        $productId = $this->isexists($record['code']);
+        if(!$productId) {
             $product = $this->_objectManager->create('\Magento\Catalog\Model\Product');
+        } else {
+            // echo "new product : $productId";
+            // echo $productId.",";
+            $this->skipProducts++;
+            return;
+            // $this->skipped++;
+        }
+        // echo "\n";
+        try {    
             $product->setData($data);
-            $product->setWebsiteIds(array(1));
-            $product->setUrlKey(strtotime('now')); 
+            $product->setWebsiteIds(array(1));            
             $product->setAttributeSetId(4);
-            $product->setTypeId('simple');
-            $product->setCreatedAt(strtotime('now')); 
+            if($record['type'] == 'BUNDLE') {
+                $product->setTypeId('bundle');
+            } else {
+                 $product->setTypeId('simple');
+            }
+           $product->setUrlKey(strtotime('now')); 
+            $product->setCreatedAt($record['name'].strtotime('now')); 
             $product->setTaxClassId(0);
             //$product->setPrice(123) ;
             $product->setStockData(
@@ -185,7 +191,7 @@ class Product extends Command
                 )
             );
             $product->save();
-
+            usleep(10);
             if(isset($record['images'])) {
                 //import
                 $this->createImage($product, $record['images'][0]['largeURL'], true, ['image', 'small_image', 'thumbnail']);
@@ -196,15 +202,17 @@ class Product extends Command
         }
         catch (\Magento\Framework\Exception\NoSuchEntityException $e)
         {
-            //echo 'Something failed for product import ' . $importProduct[0] . PHP_EOL;
             $this->skipProducts++;
             return true;
         }
+
+        unset($product);
     }
 
 
     public function createImage($product, $imageUrl, $visible = false, $imageType = [])
     {
+        if($imageUrl===''){return;}
         /** @var string $tmpDir */
         $tmpDir = $this->getMediaDirTmpDir();
         /** create folder if it is not exists */
@@ -216,6 +224,7 @@ class Product extends Command
         if ($result) {
             /** add saved file to the $product gallery */
             $product->addImageToMediaGallery($newFileName, $imageType, true, $visible);
+            $product->save();
         }
 
         return $result;
@@ -229,7 +238,7 @@ class Product extends Command
      */
     protected function getMediaDirTmpDir()
     {
-        return $this->directoryList->getPath(DirectoryList::MEDIA) . DIRECTORY_SEPARATOR . 'tmp';
+        return $this->directoryList->getPath('media') . DIRECTORY_SEPARATOR . 'tmp/';
     }
 
 } 
