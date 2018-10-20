@@ -48,6 +48,8 @@ class Product extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+
+        die("sadf");
         $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
         $this->_helperData = $this->_objectManager->get('Estdevs\Erply\Helper\Data');
         $this->directoryList = $this->_objectManager->get('\Magento\Framework\App\Filesystem\DirectoryList');
@@ -125,7 +127,7 @@ class Product extends Command
                         
                          case 'BUNDLE':
                             # code...
-                            $this->createProduct($record);
+                            //$this->createProduct($record);
                             break;
 
                         default:
@@ -162,8 +164,14 @@ class Product extends Command
         } else {
             // echo "new product : $productId";
             // echo $productId.",";
-            $this->skipProducts++;
-            return;
+            if($productId > 0) {
+                $product = $this->_objectManager->create('\Magento\Catalog\Model\Product')->load($productId);
+            } else {
+                           $this->skipProducts++;
+                     return; 
+            }
+
+
             // $this->skipped++;
         }
         // echo "\n";
@@ -176,9 +184,9 @@ class Product extends Command
             } else {
                  $product->setTypeId('simple');
             }
-           $product->setUrlKey(strtotime('now')); 
+            //$product->setUrlKey(strtotime('now')); 
             $product->setCreatedAt($record['name'].strtotime('now')); 
-            $product->setTaxClassId(0);
+            //$product->setTaxClassId(0);
             //$product->setPrice(123) ;
             $product->setStockData(
                 array(
