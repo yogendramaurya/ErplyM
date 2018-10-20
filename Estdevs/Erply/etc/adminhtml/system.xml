@@ -31,6 +31,16 @@
                     <label>Password</label>
                 </field>
             </group>
+            <group id="erplyProductImport" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+
+                <!-- Enable or disable plugin -->
+                <label>Importing Products</label>
+                <field id="productslistbutton" translate="label" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Check</label>
+                    <frontend_type>button</frontend_type>
+                    <frontend_model>Estdevs\Erply\Block\System\Config\Form\Button</frontend_model>
+                </field>
+            </group>
         </section>
     </system>
 </config>

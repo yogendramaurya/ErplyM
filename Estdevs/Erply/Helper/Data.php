@@ -17,42 +17,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     protected $erplyApi;
     public function __construct(
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
-      //  \Magento\Customer\Model\Session $customerSession
     ) {
         $this->_scopeConfig = $scopeConfig;
-        // $this->customerSession = $customerSession;
         $this->_isEnabled =  $this->_scopeConfig->getValue(self::XML_ERPLY_CONFIG_ENABLE);
         $this->erply_customercode =  $this->_scopeConfig->getValue(self::XML_ERPLY_CUSTOMER_CODE);
         $this->erply_username =  $this->_scopeConfig->getValue(self::XML_ERPLY_USERNAME);
         $this->erply_password =  $this->_scopeConfig->getValue(self::XML_ERPLY_PASSWORD);
-
-        // $this->erplyApi = new EAPI();
     }
-
-    public function getErply()
-    {
-       // $this->erplyApi = new EAPI();
-    }
-
-    public function getProductsApi()
-    {
-        $api = new EAPI();
-        $api->clientCode = 501692;
-        $api->username = "devopsheros@gmail.com";
-        $api->password = "Admin123#";
-        $api->url = "https://".$api->clientCode.".erply.com/api/";
-
-        return $api;
-
-        // Get client groups from API
-        // No input parameters are needed
-       // $result = $api->sendRequest("getProducts", array());
-
-        // Default output format is JSON, so we'll decode it into a PHP array
-       //return $output = json_decode($result, true);
-    }
-
-
 
     public function isenable()
     {
@@ -72,7 +43,86 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     {
         return $this->erply_password;
     }
+    public function erplyApi()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        $api     = $objectManager->create("Estdevs\Erply\Service\EapiService");
+        $api->clientCode = $this->getCustomercode();//501692;
+        $api->username = $this->getUsername();//"devopsheros@gmail.com";
+        $api->password = $this->getPassword(); //"Admin123#";
+        $api->url = "https://".$api->clientCode.".erply.com/api/";
 
+        return $api;
+    }
+
+    
+    public function getProducts($parameters = array())
+    {
+        $products = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getProducts", $parameters);
+        if($response) {
+            $products  = json_decode($response, true);
+        }
+
+        return $products;
+    }
+
+    public function getCustomers($parameters = array())
+    {
+        $customers = [];
+        $response = $api->sendRequest("getCustomers", $parameters);
+        if($response) {
+            $customers  = json_decode($response, true);
+        }
+
+        return $customers;
+    }
+
+
+    /***** Import Data **********/
+    /**
+     * @param $path
+     * @param null $storeId
+     * @return mixed
+     * @throws \Magento\Framework\Exception\LocalizedException
+     */
+    public function setProducts($products, $storeId = null, $scope = null)
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
+        //$attributeSetId = $this->getAttributeSet();
+
+        if(is_array($products)){
+            foreach ($products as $erplyProduct){
+                print_r($erplyProduct); 
+                // if($erplyProduct->code) {
+                //     print_r($erplyProduct); 
+                // } 
+            }
+        } 
+    }
+
+    /**
+     *  Import Customer
+     * @param $path
+     * @param null $storeId
+     * @return mixed
+     * @throws \Magento\Framework\Exception\LocalizedException
+     */
+    public function setProdCustomers($customers, $storeId = null, $scope = null)
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
+        //$attributeSetId = $this->getAttributeSet();
+
+        if(is_array($products)){
+            foreach ($products as $erplyProduct){
+                print_r($erplyProduct); 
+                // if($erplyProduct->code) {
+                //     print_r($erplyProduct); 
+                // } 
+            }
+        } 
+    }
 }
 
 
