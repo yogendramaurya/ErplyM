@@ -1,4 +1,14 @@
 <?php
+/**
+ * Ebizmarts_MailChimp Magento JS component
+ *
+ * @category    Acodesh
+ * @package     Estdevs_Erply
+ * @author      Acodesh Team <info@acodesh.com>
+ * @copyright   Acodesh (http://acodesh.com)
+ * @license     http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ */
+
 namespace Estdevs\Erply\Command;
 
 use Symfony\Component\Console\Command\Command;
@@ -49,7 +59,7 @@ class Product extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
 
-        die("sadf");
+        //die("sadf");
         $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
         $this->_helperData = $this->_objectManager->get('Estdevs\Erply\Helper\Data');
         $this->directoryList = $this->_objectManager->get('\Magento\Framework\App\Filesystem\DirectoryList');

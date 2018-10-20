@@ -23,6 +23,39 @@ class InstallData implements InstallDataInterface
 	public function install(ModuleDataSetupInterface $setup, ModuleContextInterface $context)
 	{
 		$eavSetup = $this->eavSetupFactory->create(['setup' => $setup]);
+
+		 /**
+         * Add attributes to the eav/attribute
+         */
+        $eavSetup->removeAttribute(\Magento\Catalog\Model\Product::ENTITY,'elko_product_id');
+        $eavSetup->addAttribute(
+            \Magento\Catalog\Model\Product::ENTITY,
+            'elko_product_id',/* Custom Attribute Code */
+            [
+                'group' => 'Product Details',/* Group name in which you want 
+                                              to display your custom attribute */
+                'type' => 'int',/* Data type in which formate your value save in database*/
+                'backend' => '',
+                'frontend' => '',
+                'label' => 'Elko Product Id', /* lablel of your attribute*/
+                'input' => 'text',
+                'class' => '',
+                'source' => '',
+                'global' => \Magento\Eav\Model\Entity\Attribute\ScopedAttributeInterface::SCOPE_GLOBAL,
+                'visible' => true,
+                'required' => false,
+                'user_defined' => false,
+                'default' => '',
+                'searchable' => false,
+                'filterable' => false,
+                'comparable' => false,
+                'visible_on_front' => false,
+                'used_in_product_listing' => true,
+                'unique' => false
+            ]
+        );
+
+		
 		$eavSetup->addAttribute(
 			\Magento\Customer\Model\Customer::ENTITY,
 			'erply_customerID',

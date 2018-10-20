@@ -1,9 +1,9 @@
 <div class="pp-buttons-container">
-    <button id="imp-pro" onclick="return false;">
+    <button id="acodesh-customer-import" onclick="return false;">
         <span><span><span><?php echo $block->escapeHtml($block->getButtonLabel()); ?></span></span></span>
     </button>
 </div>
-<span class="collect-indicator" id="collect_span">
+<span class="collect-indicator" id="acodesh_customer_import_collect_span">
     <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
     <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
     <span id="collect_message_span"></span>
@@ -13,8 +13,8 @@ require([
     'jquery',
     'prototype',
 ], function($){
-	var collectSpan = jQuery('#collect_span');
-    function syncronize() {
+	var collectSpan = jQuery('#acodesh_customer_import_collect_span');
+    function Acodeshcustomerimport() {
         params = {
         };
 
@@ -48,8 +48,8 @@ require([
         });
     }
     $(document).ready(function($) {
-	   	$("#imp-pro").on( "click", function() {	            
-	        syncronize();
+	   	$("#acodesh-customer-import").on( "click", function() {	            
+	        Acodeshcustomerimport();
 	    });
     }); 
 });
