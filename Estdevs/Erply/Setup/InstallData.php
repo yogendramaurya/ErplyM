@@ -22,62 +22,33 @@ class InstallData implements InstallDataInterface
 
 	public function install(ModuleDataSetupInterface $setup, ModuleContextInterface $context)
 	{
-		$eavSetup = $this->eavSetupFactory->create(['setup' => $setup]);
+		$userAttributes = ['erply_customerID', 'erply_type_id', 'erply_groupID', 'erply_companyName', 'erply_payerID','erply_phone', 'erply_mobile','erply_fax', 'erply_birthday', 'erply_code', 'erply_integrationCode', 'erply_flagStatus', 'erply_colorStatus', 'erply_credit', 'erply_salesBlocked', 'erply_referenceNumber', 'erply_customerCardNumber', 'erply_customerType', 'erply_addressTypeID', 'erply_addressTypeName', 'erply_isPOSDefaultCustomer', 'erply_euCustomerType','erply_lastModifierUsername', 'erply_lastModifierEmployeeID', 'erply_taxExempt', 'erply_paysViaFactoring', 'erply_rewardPoints','erply_twitterID', 'erply_facebookName', 'erply_creditCardLastNumbers', 'erply_deliveryTypeID', 'erply_image', 'erply_rewardPointsDisabled', 'erply_posCouponsDisabled', 'erply_emailOptOut', 'erply_signUpStoreID', 'erply_homeStoreID','erply_countryID'];
+		foreach ($userAttributes as $attribute) {
+			$eavSetup = $this->eavSetupFactory->create(['setup' => $setup]);
+			$label = explode('_', $attribute);
+			$eavSetup->addAttribute(
+				\Magento\Customer\Model\Customer::ENTITY,
+				'erply_customerID',
+				[
+					'type'         => 'varchar',
+					'label'        => $label[1],
+					'input'        => 'text',
+					'required'     => false,
+					'visible'      => true,
+					'user_defined' => true,
+					'position'     => 999,
+					'system'       => 0,
+				]
+			);
+			$sampleAttribute = $this->eavConfig->getAttribute(Customer::ENTITY, $attribute);
 
-		 /**
-         * Add attributes to the eav/attribute
-         */
-        $eavSetup->removeAttribute(\Magento\Catalog\Model\Product::ENTITY,'elko_product_id');
-        $eavSetup->addAttribute(
-            \Magento\Catalog\Model\Product::ENTITY,
-            'elko_product_id',/* Custom Attribute Code */
-            [
-                'group' => 'Product Details',/* Group name in which you want 
-                                              to display your custom attribute */
-                'type' => 'int',/* Data type in which formate your value save in database*/
-                'backend' => '',
-                'frontend' => '',
-                'label' => 'Elko Product Id', /* lablel of your attribute*/
-                'input' => 'text',
-                'class' => '',
-                'source' => '',
-                'global' => \Magento\Eav\Model\Entity\Attribute\ScopedAttributeInterface::SCOPE_GLOBAL,
-                'visible' => true,
-                'required' => false,
-                'user_defined' => false,
-                'default' => '',
-                'searchable' => false,
-                'filterable' => false,
-                'comparable' => false,
-                'visible_on_front' => false,
-                'used_in_product_listing' => true,
-                'unique' => false
-            ]
-        );
+			// more used_in_forms ['adminhtml_checkout','adminhtml_customer','adminhtml_customer_address','customer_account_edit','customer_address_edit','customer_register_address']
+			$sampleAttribute->setData(
+				'used_in_forms',
+				['adminhtml_customer', 'customer_account_edit']
 
-		
-		$eavSetup->addAttribute(
-			\Magento\Customer\Model\Customer::ENTITY,
-			'erply_customerID',
-			[
-				'type'         => 'varchar',
-				'label'        => 'Erply CustomerId',
-				'input'        => 'text',
-				'required'     => false,
-				'visible'      => true,
-				'user_defined' => true,
-				'position'     => 999,
-				'system'       => 0,
-			]
-		);
-		$sampleAttribute = $this->eavConfig->getAttribute(Customer::ENTITY, 'erply_customerID');
-
-		// more used_in_forms ['adminhtml_checkout','adminhtml_customer','adminhtml_customer_address','customer_account_edit','customer_address_edit','customer_register_address']
-		$sampleAttribute->setData(
-			'used_in_forms',
-			['adminhtml_customer', 'customer_account_edit']
-
-		);
-		$sampleAttribute->save();
+			);
+			$sampleAttribute->save();
+		}		
 	}
 }
