@@ -27,6 +27,13 @@ class Customer extends Command
      */
     protected $file;
 
+
+    /**
+     * @var \Magento\Customer\Model\AddressFactory
+     */
+    protected $addressFactory;
+
+
     public function __construct(
         \Magento\Framework\App\State $state,
         \Magento\Framework\App\Filesystem\DirectoryList $directoryList,
@@ -34,14 +41,16 @@ class Customer extends Command
         \Estdevs\Erply\Helper\Data $helperData,
         \Magento\Customer\Model\CustomerFactory $customerFactory,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
-        \Magento\Framework\ObjectManagerInterface $objectmanager
+        \Magento\Framework\ObjectManagerInterface $objectmanager,
+        \Magento\Customer\Model\AddressFactory $addressFactory
        ) {
             $this->state = $state;
             $this->_objectManager = $objectmanager;
             $this->_helperData = $helperData;
-             $this->storeManager     = $storeManager;
+            $this->storeManager     = $storeManager;
             $this->customerFactory  = $customerFactory;
             $this->file = $file;
+            $this->addressFactory = $addressFactory;
             parent::__construct();
     }
 
@@ -80,7 +89,7 @@ class Customer extends Command
         // fetch products
         $limit = 100;
         $pages = ceil($this->totalRecords/$limit);
-        $output->writeln("Erply total products : $this->totalRecords");
+        $output->writeln("Erply total customers : $this->totalRecords");
 
         for ($i=1; $i <= $pages; $i++) { 
             $this->importcustomers($api, array('pageNo' => $i, 'recordsOnPage'=> $limit));
@@ -101,16 +110,6 @@ class Customer extends Command
             $this->totalRecords = $summaryResult['status']['recordsTotal'];
         }
     }
-
-    protected function isexists($_customerCode)
-    {
-        $product = $this->_objectManager->get('Magento\Catalog\Model\Product');
-        if($productId = $product->getIdBySku($sku)) {
-            return $productId;   
-        } 
-
-        return false;
-    }
     
     protected function importcustomers($api, $parameters = array())
     {
@@ -127,45 +126,93 @@ class Customer extends Command
 
     public function createCustomer($record)
     {
-        // $data = array(
-        //     'firstName' => $record['firstName'],
-        //     'lastName' => $record['lastName'],
-        //     'email' => $record['email'],
-        // );
-        print_r($record);
-        if(empty($record['firstName']) || $record['firstName'] == '' || $record['firstName'] == null){
-            print_r($record);die();
-        }
-
-        try {    
-             // Get Website ID
+        try { 
             $websiteId  = $this->storeManager->getWebsite()->getWebsiteId();
-
-            // Instantiate object (this is the most important part)
             $customer   = $this->customerFactory->create();
             $customer->setWebsiteId($websiteId);
-            //$customer->setData($data);
-            // Preparing data for new customer
-            $customer->setEmail($record['email']); 
-            $name =  !empty($record['firstName']) ? $record['firstName'] :$record['fullName'];
-            $customer->setFirstName($name); 
-            $customer->setLastName($record['lastName']); 
-            $customer->setPassword("password");
-
-
-            // Save data
+            $data = [
+                'firstName' => $record['firstName'],
+                'lastName' =>$record['lastName'],
+                'email' =>$record['email'],
+                'password' =>'123456789',
+                'erply_customerID' =>$record['customerID'],
+                'erply_type_id' =>$record['type_id'],
+                'erply_companyName' =>$record['companyName'],
+                'erply_groupID' =>$record['groupID'],
+                'erply_countryID' =>$record['countryID'],
+                'erply_payerID' =>$record['payerID'],
+                'erply_phone' =>$record['phone'],
+                'erply_mobile' =>$record['mobile'],
+                'erply_fax' =>$record['fax'],
+                'erply_code' =>$record['code'],
+                'erply_birthday' =>$record['birthday'],
+                'erply_integrationCode' =>$record['integrationCode'],
+                'erply_flagStatus' =>$record['flagStatus'],
+                'erply_colorStatus' =>$record['colorStatus'],
+                'erply_credit' =>$record['credit'],
+                'erply_salesBlocked' =>$record['salesBlocked'],
+                'erply_referenceNumber' =>$record['referenceNumber'],
+                'erply_customerCardNumber' =>$record['customerCardNumber'],
+                'erply_customerType' =>$record['customerType'],
+                'erply_addressTypeID' =>$record['addressTypeID'],
+                'erply_addressTypeName' =>$record['addressTypeName'],
+                'erply_isPOSDefaultCustomer' =>$record['isPOSDefaultCustomer'],
+                'erply_euCustomerType' =>$record['euCustomerType'],
+                'erply_lastModifierUsername' =>$record['lastModifierUsername'],
+                'erply_lastModifierUsername' =>$record['lastModifierUsername'],
+                'erply_lastModifierEmployeeID' =>$record['lastModifierEmployeeID'],
+                'erply_paysViaFactoring' =>$record['paysViaFactoring'],
+                'erply_rewardPoints' =>$record['rewardPoints'],
+                'erply_twitterID' =>$record['twitterID'],
+                'erply_facebookName' =>$record['facebookName'],
+                'erply_creditCardLastNumbers' =>$record['creditCardLastNumbers'],
+                'erply_deliveryTypeID' =>$record['deliveryTypeID'],
+                'erply_image' =>$record['image'],
+                'erply_rewardPointsDisabled' =>$record['rewardPointsDisabled'],
+                'erply_posCouponsDisabled' =>$record['posCouponsDisabled'],
+                'erply_emailOptOut' =>$record['emailOptOut'],
+                'erply_signUpStoreID' =>$record['signUpStoreID'],
+                'erply_homeStoreID' =>$record['homeStoreID'],
+                ];
+            $customer->setData($data);
+            $this->setcustomerAddress($customer->getId(), $record);
             $customer->save();
             // $customer->sendNewAccountEmail();
-die();
             $this->success++;
-            echo ".";
-        }
-        catch (\Magento\Framework\Exception\NoSuchEntityException $e)
-        {
+            $output->writeln("Success : ". $record['id']);
+        } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
+            $output->writeln("Error : ". $record['id']);
             $this->skip++;
-            return true;
         }
-
+        $output->writeln(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        $output->writeln("Totel Success : ". $this->success);
+        $output->writeln("Total Error : ". $this->skip);
+        $output->writeln(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
         unset($customer);
+    }
+
+    public function setcustomerAddress($id,$record) {
+        print_r($id);die;
+        $street = array(
+        '0' => $record['street'], 
+        '1' => $record['address'] 
+        );
+        $customerAddress = $this->addressFactory->create();
+        $customerAddress->setCustomerId($id, $record)
+        ->setFirstname($record['firstName'])
+        ->setLastname($record['lastName'])
+        ->setCountryId('US')
+        ->setPostcode($record['postalCode'])
+        ->setCity($record['city'])
+        ->setTelephone($record['phone']?:'12345712')
+        ->setFax($record['fax'])
+        ->setCompany($record['companyName'])
+        ->setStreet($street)
+        ->setIsDefaultBilling('1')
+        ->setIsDefaultShipping('1')
+        ->setSaveInAddressBook('1');
+
+        $customerAddress->save();
+        return true;
     }
 }
