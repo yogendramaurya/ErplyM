@@ -24,8 +24,6 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     public $successRecords = 0;
     public $skipRecords = 0;
     public $updatedRecords = 0;
-
-
     protected $_scopeConfig;
     protected $_isEnabled;
     protected $erply_customercode;
@@ -34,12 +32,21 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     protected $estmessage;
     protected $erplyApi;
     protected $_importImageService;
+    protected $customerFactory;
+    protected $storeManager;
+    protected $addressFactory;
+
     public function __construct(
         \Estdevs\Erply\Service\ImportImageService $importImageService,
+        \Magento\Store\Model\StoreManagerInterface $storeManager,
+        \Magento\Customer\Model\CustomerFactory $customerFactory,
+        \Magento\Customer\Model\AddressFactory $addressFactory,
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
     ) {
         $this->_scopeConfig = $scopeConfig;
         $this->_importImageService = $importImageService;
+        $this->storeManager     = $storeManager;
+        $this->customerFactory  = $customerFactory;
         $this->_isEnabled =  $this->_scopeConfig->getValue(self::XML_ERPLY_CONFIG_ENABLE);
         $this->erply_customercode =  $this->_scopeConfig->getValue(self::XML_ERPLY_CUSTOMER_CODE);
         $this->erply_username =  $this->_scopeConfig->getValue(self::XML_ERPLY_USERNAME);
@@ -124,18 +131,6 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
         return $products;
     }
-
-    public function getCustomers($parameters = array())
-    {
-        $customers = [];
-        $response = $api->sendRequest("getCustomers", $parameters);
-        if($response) {
-            $customers  = json_decode($response, true);
-        }
-
-        return $customers;
-    }
-
 
     /***** Import Data **********/
     /**
@@ -258,6 +253,17 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         }
     }
 
+    public function getCustomers($parameters = array())
+    {
+        $customers = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getCustomers", $parameters);
+        if($response) {
+            $customers  = json_decode($response, true);
+        }
+
+        return $customers;
+    }
 
     /**
      *  Import Customer
@@ -266,19 +272,141 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      * @return mixed
      * @throws \Magento\Framework\Exception\LocalizedException
      */
-    public function setCustomers($customers, $storeId = null, $scope = null)
+    public function setCustomers($cli = null)
     {
-        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
-        //$attributeSetId = $this->getAttributeSet();
+        $response = $this->getCustomers(array('pageNo' => 1, 'recordsOnPage'=> 1));
+        if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
+            $this->totalRecords = $response['status']['recordsTotal'];
+            $limit = 100;
+            $pages = ceil($this->totalRecords/$limit);
+            for ($i=1; $i <= $pages; $i++) {
+                $erplyCustomers = $this->getCustomers(array('pageNo' => $i, 'recordsOnPage'=> $limit));
+                $erplyCustomers = $erplyCustomers['records'];
 
-        if(is_array($products)){
-            foreach ($products as $erplyProduct){
-                print_r($erplyProduct); 
-                // if($erplyProduct->code) {
-                //     print_r($erplyProduct); 
-                // } 
+                if(is_array($erplyCustomers)){
+                    foreach ($erplyCustomers as $key => &$_erplyCustomer) {
+                        if($cli !== null) { echo ".";}
+                        if(!isset($_erplyCustomer['email'])||empty($_erplyCustomer['email'])||empty($_erplyCustomer['firstName'])||empty($_erplyCustomer['lastName']) || $_erplyCustomer['email'] ==' '){
+                            return;
+                        }
+                         $this->createCustomer($_erplyCustomer);   
+                         break;           
+                    }
+                }
             }
-        } 
+        }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+        if($cli !== null) {
+            echo "\n-----------------------------------------\n";
+            echo "Total Records : $this->totalRecords \n";
+            echo "Successfully imported : $this->successRecords \n";
+            echo "Skip Records due to already exists : $this->skipRecords \n";
+            echo "-----------------------------------------\n";
+        }
+
+        return $response;
+    }
+
+    public function createCustomer($record)
+    {
+        $email = $record['email'];
+        $firstName = $record['firstName'] == "" ? $record['fullName'] : $record['firstName'];
+        $websiteId  = $this->storeManager->getWebsite()->getWebsiteId();
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        $customerFactory = $objectManager->get('\Magento\Customer\Model\CustomerFactory')->create();
+        $customer = $customerFactory->setWebsiteId($websiteId)->loadByEmail($email);
+        if ($customer->getId()) {
+             $this->skipRecords++;
+                return; 
+        } else {
+            $data = [
+                'firstname' => $firstName,
+                'lastname' => $record['lastName'],
+                'email' => $record['email'],
+                'password' =>'123456789',
+                'erply_customerID' =>$record['customerID'],
+                'erply_type_id' =>$record['type_id'],
+                'erply_companyName' =>$record['companyName'],
+                'erply_groupID' =>$record['groupID'],
+                'erply_countryID' =>$record['countryID'],
+                'erply_payerID' =>$record['payerID'],
+                'erply_phone' =>$record['phone'],
+                'erply_mobile' =>$record['mobile'],
+                'erply_fax' =>$record['fax'],
+                'erply_code' =>$record['code'],
+                'erply_birthday' =>$record['birthday'],
+                'erply_integrationCode' =>$record['integrationCode'],
+                'erply_flagStatus' =>$record['flagStatus'],
+                'erply_colorStatus' =>$record['colorStatus'],
+                'erply_credit' =>$record['credit'],
+                'erply_salesBlocked' =>$record['salesBlocked'],
+                'erply_referenceNumber' =>$record['referenceNumber'],
+                'erply_customerCardNumber' =>$record['customerCardNumber'],
+                'erply_customerType' =>$record['customerType'],
+                'erply_addressTypeID' =>$record['addressTypeID'],
+                'erply_addressTypeName' =>$record['addressTypeName'],
+                'erply_isPOSDefaultCustomer' =>$record['isPOSDefaultCustomer'],
+                'erply_euCustomerType' =>$record['euCustomerType'],
+                'erply_lastModifierUsername' =>$record['lastModifierUsername'],
+                'erply_lastModifierUsername' =>$record['lastModifierUsername'],
+                'erply_lastModifierEmployeeID' =>$record['lastModifierEmployeeID'],
+                'erply_paysViaFactoring' =>$record['paysViaFactoring'],
+                'erply_rewardPoints' =>$record['rewardPoints'],
+                'erply_twitterID' =>$record['twitterID'],
+                'erply_facebookName' =>$record['facebookName'],
+                'erply_creditCardLastNumbers' =>$record['creditCardLastNumbers'],
+                'erply_deliveryTypeID' =>$record['deliveryTypeID'],
+                'erply_image' =>$record['image'],
+                'erply_rewardPointsDisabled' =>$record['rewardPointsDisabled'],
+                'erply_posCouponsDisabled' =>$record['posCouponsDisabled'],
+                'erply_emailOptOut' =>$record['emailOptOut'],
+                'erply_signUpStoreID' =>$record['signUpStoreID'],
+                'erply_homeStoreID' =>$record['homeStoreID'],
+            ];
+
+            
+            $customer->setFirstname($firstName);
+            $customer->setLastname($record['lastName']);
+            $customer->setEmail($record['email']);
+
+            try {
+                $customer->save();
+                $this->setcustomerAddress($customer->getId(), $record, $objectManager);
+                $this->successRecords++;
+            } catch (Exception $e) {
+                $this->skipRecords++;
+                return;
+            }
+        }
+        unset($customer);
+    }
+
+    public function setcustomerAddress($id,$record, $objectManager) {
+      
+        $street = array(
+            '0' => $record['street'], 
+            '1' => $record['address'] 
+        );
+        $customerAddress =  $objectManager->get('\Magento\Customer\Model\AddressFactory')->create();
+        $customerAddress->setCustomerId($id, $record)
+            ->setFirstname($record['firstName'])
+            ->setLastname($record['lastName'])
+            ->setCountryId('US')
+            ->setPostcode($record['postalCode'])
+            ->setCity($record['city'])
+            ->setTelephone($record['phone']?:'12345712')
+            ->setFax($record['fax'])
+            ->setCompany($record['companyName'])
+            ->setStreet($street)
+            ->setIsDefaultBilling('1')
+            ->setIsDefaultShipping('1')
+            ->setSaveInAddressBook('1');
+
+        $customerAddress->save();
+        return true;
     }
 }
 

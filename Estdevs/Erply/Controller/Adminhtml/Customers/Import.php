@@ -11,8 +11,8 @@
 
 namespace Estdevs\Erply\Controller\Adminhtml\Customers;
 
-
 use Magento\Framework\Controller\ResultFactory;
+use Magento\Framework\Controller\Result\JsonFactory;
 
 class Import extends \Magento\Backend\App\Action
 {
@@ -35,6 +35,7 @@ class Import extends \Magento\Backend\App\Action
      */
     public function __construct(
         \Magento\Backend\App\Action\Context $context,
+        JsonFactory $resultJsonFactory,
         \Estdevs\Erply\Helper\Data $helper
         
     ) {
@@ -42,6 +43,7 @@ class Import extends \Magento\Backend\App\Action
         parent::__construct($context);
         $this->_helper = $helper;
         $this->_resultFactory  = $context->getResultFactory();
+        $this->resultJsonFactory = $resultJsonFactory;
         $this->_messageManager = $context->getmessageManager();
 
     }
@@ -51,28 +53,18 @@ class Import extends \Magento\Backend\App\Action
      */
     public function execute()
     {
-   
-        $summaryResult = $this->_helper->getCustomers(array('pageNo' =>1, 'recordsOnPage'=>1));
-        if($summaryResult['status']['responseStatus'] == "ok") {
-            $this->totalRecords = $summaryResult['status']['recordsTotal'];
+         $result = $this->resultJsonFactory->create();
+         $lastCollectTime ="21";
+   //return $result->setData(['success' => true,  'time' => $lastCollectTime]);
+       
+        try {
+            $products = $this->_helper->setCustomers();     
+            $lastCollectTime ="21";
+            $message = "Customer imported successfully.";
+            return $result->setData(['success' => true, 'message'=> $message, 'time' => $lastCollectTime]);
+        } catch (Exception $e) {
+            return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
         }
-
-        $limit = 100;
-        $pages = ceil($this->totalRecords/$limit);
-        for ($i=1; $i <= $pages; $i++) { 
-            $customers = $this->_helper->getCustomers(array('pageNo' => $i, 'recordsOnPage'=> $limit));
-            if(count($customers['records'])){
-                $customers = $this->_helper->setCustomers($customers['records']);   
-            }
-            unset($customers);
-        }
-		
-		$this->_messageManager->addSuccessMessage('Customers have been imported successfully.');
-        
-        $resultRedirect = $this->_resultFactory->create(ResultFactory::TYPE_REDIRECT);
-        $resultRedirect->setUrl($this->_redirect->getRefererUrl());
-
-        return $resultRedirect;
 
     }
 }

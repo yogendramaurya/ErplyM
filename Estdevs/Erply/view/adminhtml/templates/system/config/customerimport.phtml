@@ -1,20 +1,20 @@
 <div class="pp-buttons-container">
-    <button id="acodesh-customer-import" onclick="return false;">
+    <button id="customerimport" onclick="return false;">
         <span><span><span><?php echo $block->escapeHtml($block->getButtonLabel()); ?></span></span></span>
     </button>
 </div>
-<span class="collect-indicator" id="acodesh_customer_import_collect_span">
+<span class="collect-indicator" id="customer_collect_span">
     <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
     <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
-    <span id="collect_message_span"></span>
+    <span id="customerimp_collect_message_span">safdsf</span>
 </span>
 <script>
 require([
     'jquery',
     'prototype',
 ], function($){
-	var collectSpan = jQuery('#acodesh_customer_import_collect_span');
-    function Acodeshcustomerimport() {
+    var customercollectSpan = jQuery('#customer_collect_span');
+    function customersyncronize() {
         params = {
         };
 
@@ -23,22 +23,24 @@ require([
             asynchronous:   true,
             parameters:     params,
             onCreate: function() {
-                    collectSpan.find('.collected').hide();
-                    collectSpan.find('.processing').show();
-                    jQuery('#collect_message_span').text('');
-                },
+                customercollectSpan.find('.collected').hide();
+                customercollectSpan.find('.processing').show();
+                jQuery('#customerimp_collect_message_span').text('');
+            },
             onSuccess: function(response) {
                // var response = JSON.parse(transport.responseText);
-                collectSpan.find('.processing').hide();
+                customercollectSpan.find('.processing').hide();
  
                 var resultText = '';
                 if (response.status > 200) {
-                    resultText = response.statusText;
+
+                    resultText = response.responseText;
+                    resultText = 'Products have been imported successfully';
                 } else {
                     resultText = 'Products have been imported successfully';
                     collectSpan.find('.collected').show();
                 }
-                jQuery('#collect_message_span').text(resultText);
+                jQuery('#customerimp_collect_message_span').html(resultText);
 
                 var json = response.responseJSON;
                 if (typeof json.time != 'undefined') {
@@ -48,9 +50,9 @@ require([
         });
     }
     $(document).ready(function($) {
-	   	$("#acodesh-customer-import").on( "click", function() {	            
-	        Acodeshcustomerimport();
-	    });
+        $("#customerimport").on( "click", function() {             
+            customersyncronize();
+        });
     }); 
 });
 </script>
