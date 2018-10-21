@@ -54,15 +54,14 @@ class Import extends \Magento\Backend\App\Action
      */
     public function execute()
     {
-   
-		$products = $this->_helper->getProducts();
-				
-		if(count($products)){
-			  $products = $this->_helper->setProducts($products);	
-		}	        
         $result = $this->resultJsonFactory->create();
-        $lastCollectTime ="21";
-        return $result->setData(['success' => true, 'time' => $lastCollectTime]);
-
+        try {
+            $products = $this->_helper->setProducts($products);     
+            $lastCollectTime ="21";
+            $message = "Product import successfully.";
+            return $result->setData(['success' => true, 'message'=> $message, 'time' => $lastCollectTime]);
+        } catch (Exception $e) {
+            return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
+        }
     }
 }

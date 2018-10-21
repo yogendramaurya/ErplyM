@@ -144,8 +144,9 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      * @return mixed
      * @throws \Magento\Framework\Exception\LocalizedException
      */
-    public function setProducts($products, $storeId = null, $scope = null)
+    public function setProducts($cli = null)
     {
+
         $response = $this->getProducts(array('pageNo' => 1, 'recordsOnPage'=> 1));
         if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
             $this->totalRecords = $response['status']['recordsTotal'];
@@ -157,6 +158,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
                 if(is_array($erplyProducts)){
                     foreach ($erplyProducts as $key => &$_erplyProduct) {
+                        if($cli !== null) { echo ".";}
                         // echo "<pre>";
                         // print_r($_erplyProduct);
                         // continue;
@@ -184,6 +186,19 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                 }
             }
         }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+        if($cli !== null) {
+            echo "\n-----------------------------------------\n";
+            echo "Total Records : $this->totalRecords \n";
+            echo "Successfully imported : $this->successRecords \n";
+            echo "Skip Records due to already exists : $this->skipRecords \n";
+            echo "-----------------------------------------\n";
+        }
+
+        return $response;
     }
 
     public function createProduct($_erplyProduct = null)
