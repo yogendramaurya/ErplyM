@@ -13,9 +13,9 @@ namespace Estdevs\Erply\Block\System\Config\Form;
  
 use Magento\Framework\App\Config\ScopeConfigInterface;
  
-class Button extends \Magento\Config\Block\System\Config\Form\Field
+class CustomerButton extends \Magento\Config\Block\System\Config\Form\Field
 {
-     const BUTTON_TEMPLATE = 'system/config/productimport.phtml';
+     const BUTTON_TEMPLATE = 'system/config/customerimport.phtml';
  
      /**
      * Set template to itself
@@ -49,7 +49,7 @@ class Button extends \Magento\Config\Block\System\Config\Form\Field
      */
     public function getAjaxCheckUrl()
     {
-        return $this->getUrl('estdevs_erply/products/import'); //hit controller by ajax call on button click.
+        return $this->getUrl('estdevs_erply/customers/import'); //hit controller by ajax call on button click.
     }
      /**
      * Get the button and scripts contents
@@ -63,7 +63,7 @@ class Button extends \Magento\Config\Block\System\Config\Form\Field
         $this->addData(
             [
                 'id'        => 'addbutton_button',
-                'button_label'     => _('Import Products'),
+                'button_label'     => _('Import Customers'),
                 'onclick'   => 'javascript:check(); return false;'
             ]
         );

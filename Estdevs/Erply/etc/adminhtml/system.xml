@@ -34,11 +34,20 @@
             <group id="erplyProductImport" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
 
                 <!-- Enable or disable plugin -->
-                <label>Importing Products</label>
+                <label>Import From Erply</label>
                 <field id="productslistbutton" translate="label" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
-                    <label>Check</label>
-                    <frontend_type>button</frontend_type>
                     <frontend_model>Estdevs\Erply\Block\System\Config\Form\Button</frontend_model>
+                    <label>Click to import products</label>
+                </field>
+                <field id="collect_time" translate="label comment" type="hidden" sortOrder="21" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <frontend_model>Estdevs\Erply\Block\System\Config\Time</frontend_model>
+                </field>
+                <field id="acodesh_customer_import" translate="label" sortOrder="22" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <frontend_model>Estdevs\Erply\Block\System\Config\Form\CustomerButton</frontend_model>
+                    <label>Click to import customers</label>
+                </field>
+                <field id="acodesh_customer_collect_time" translate="label comment" type="hidden" sortOrder="23" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <frontend_model>Estdevs\Erply\Block\System\Config\Time</frontend_model>
                 </field>
             </group>
         </section>
