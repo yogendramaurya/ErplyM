@@ -1,14 +1,12 @@
 <?php
 /**
- * mc-magento2 Magento Component
+ * Ebizmarts_MailChimp Magento JS component
  *
- * @category ACODESH
- * @package mc-magento2
- * @author Acodesh Team <info@acodesh.com>
- * @copyright Ebizmarts (http://acodesh.com)
+ * @category    Acodesh
+ * @package     Estdevs_Erply
+ * @author      Acodesh Team <info@acodesh.com>
+ * @copyright   Acodesh (http://acodesh.com)
  * @license     http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
- * @date: 3/23/18 10:05 AM
- * @file: GetInterest.php
  */
 
 namespace Estdevs\Erply\Controller\Adminhtml\Customers;
