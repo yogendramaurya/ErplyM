@@ -12,6 +12,7 @@
 namespace Estdevs\Erply\Command;
 
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -35,13 +36,29 @@ class Product extends Command
 
     protected function configure()
     {
+
         $this->setName("acodesh:importproduct");
         $this->setDescription("Download Products and update in magento.");
+        $this->addArgument('price', InputArgument::OPTIONAL, __('Type a number'));
         parent::configure();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $response = $this->_helper->setProducts("cli");
+        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML); 
+
+        if($input->getArgument('price') == "price") {
+            //$output->writeln($input->getArgument('price')*2);
+            $response = $this->_helper->setpriceSync("cli");
+            echo "<pre>";
+            print_r($response);
+        } elseif($input->getArgument('price') == "category") {
+             $response = $this->_helper->syncProductCategory("cli");
+             echo "<pre>";
+            print_r($response);
+        }
+        else {
+            $response = $this->_helper->setProducts("cli");
+        }
     }
 } 

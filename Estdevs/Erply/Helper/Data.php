@@ -111,9 +111,9 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     {
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $api     = $objectManager->create("Estdevs\Erply\Service\EapiService");
-        $api->clientCode = $this->getCustomercode();//501692;
-        $api->username = $this->getUsername();//"devopsheros@gmail.com";
-        $api->password = $this->getPassword(); //"Admin123#";
+        $api->clientCode = $this->getCustomercode();
+        $api->username = $this->getUsername();
+        $api->password = $this->getPassword(); 
         $api->url = "https://".$api->clientCode.".erply.com/api/";
 
         return $api;
@@ -132,6 +132,23 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         return $products;
     }
 
+    public function priceSync($parameters = array())
+    {
+        $products = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getProductPrices", $parameters);
+        if($response) {
+            $products  = json_decode($response, true);
+        }
+
+        return $products;
+    }
+
+    public function setpriceSync($cli = null)
+    {
+        return $response = $this->priceSync(array('pageNo' => 1, 'recordsOnPage'=> 100));
+    }
+
     /***** Import Data **********/
     /**
      * @param $path
@@ -148,32 +165,15 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $limit = 100;
             $pages = ceil($this->totalRecords/$limit);
             for ($i=1; $i <= $pages; $i++) {
-                $erplyProducts = $this->getProducts(array('pageNo' => $i, 'getStockInfo'=>1, 'recordsOnPage'=> $limit));
+                $erplyProducts = $this->getProducts(array('pageNo' => $i, 'getParameters' => 1, 'getRecipes'=>1,'getStockInfo'=>1, 'recordsOnPage'=> $limit));
                 $erplyProducts = $erplyProducts['records'];
 
                 if(is_array($erplyProducts)){
                     foreach ($erplyProducts as $key => &$_erplyProduct) {
                         if($cli !== null) { echo ".";}
-                        // echo "<pre>";
-                        // print_r($_erplyProduct);
-                        // continue;
+                        
                         if($_erplyProduct['active']) {
-                             switch ($_erplyProduct['type']) {
-                                case 'PRODUCT':
-                                    # code...
-                                    $this->createProduct($_erplyProduct);
-                                    break;
-                                
-                                 case 'BUNDLE':
-                                    # code...
-                                    //$this->createProduct($record);
-                                    break;
-
-                                default:
-                                    # code...
-                                    // $this->createProduct($record);
-                                    break;
-                            }
+                            $this->createProduct($_erplyProduct);
                         } else {
                             $this->skipRecords++;
                         }               
@@ -201,7 +201,6 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         if($_erplyProduct == null) return;
 
         // Write Validate code for required value to create product
-
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
         $attributeSetId = 4;//$this->getAttributeSet();
 
@@ -215,9 +214,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $product->setWeight($_erplyProduct['netWeight']); // weight of product
             $product->setVisibility(4); // visibilty of product (catalog / search / catalog, search / Not visible individually)
             $product->setTaxClassId(0); // Tax class id
-            $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)
+            if($_erplyProduct['type'] == "BUNDLE") {
+                $product->setTypeId('bundle');
+            } else {
+                $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)     
+            }
+            $product->setUrlKey($_erplyProduct['code'].strtotime('now')); 
             $product->setPrice($_erplyProduct['price']); // price of product
-            //$product->setSpecialPrice($elkoProduct->discountPrice); // price of product
             $product->setDescription($_erplyProduct['longdesc']);
             $product->setShortDescription($_erplyProduct['description']);
 
@@ -248,10 +251,57 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                     $product->save();
                 }
             }
+            if(isset($_erplyProduct["productComponents"])){
+                //$this->bundleOption($_erplyProduct["productComponents"], $product, $objectManager);
+            }
         } else {
             $this->skipRecords++;
         }
     }
+
+    public function bundleOption($bundleOptions, $product, $objectManager)
+    {
+
+        $productRepository = $objectManager->create(\Magento\Catalog\Api\ProductRepositoryInterface::class);
+        $links = array();
+        //handle sub-items or sizes
+        foreach($bundleOptions as $_bundleoption){
+            $link = $objectManager->create(\Magento\Bundle\Api\Data\LinkInterface::class);
+            $link->setPosition(0);
+            $link->setSku($_bundleoption["componentID"]);
+            $link->setIsDefault(false);
+            $link->getQty(1);
+            $link->setPrice($_bundleoption["amount"]);
+            $link->setPriceType(\Magento\Bundle\Api\Data\LinkInterface::PRICE_TYPE_FIXED);
+            $links[] = $link;
+        }
+
+  
+
+        /** @var \Magento\Catalog\Api\Data\ProductExtensionInterface $productExtension */
+        $productExtension = $objectManager->create(\Magento\Catalog\Api\Data\ProductExtensionInterface::class);
+        /** @var \Magento\Bundle\Api\Data\OptionInterface $option */
+        $option = $objectManager->create(\Magento\Bundle\Api\Data\OptionInterface::class);
+        $option->setTitle('Size');
+        $option->setType('dropdown');
+        $option->setRequired(true);
+        $option->setPosition(1);
+        $option->setProductLinks($links);
+        $productExtension->setBundleOptions([$option]);
+
+        /** @var \Magento\CatalogInventory\Api\Data\StockItemInterface $stockItem */
+        $stockItem = $objectManager->create(\Magento\CatalogInventory\Api\Data\StockItemInterface::class);
+        $stockItem->setUseConfigManageStock(false);
+        $stockItem->setManageStock(true);
+        $stockItem->getIsInStock(true);
+        $stockItem->setQty(9999);
+        $productExtension->setStockItem($stockItem);
+
+        $product->setExtensionAttributes($productExtension);
+        $productRepository->save($product, true);
+        $product->save();
+    }
+
 
     public function getCustomers($parameters = array())
     {
@@ -407,6 +457,17 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
         $customerAddress->save();
         return true;
+    }
+
+    public function syncProductCategory(){
+         $customers = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getProductCategories");
+        if($response) {
+            $customers  = json_decode($response, true);
+        }
+
+        return $customers;
     }
 }
 
