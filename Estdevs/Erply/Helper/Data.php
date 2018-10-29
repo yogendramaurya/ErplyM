@@ -132,6 +132,36 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         return $products;
     }
 
+     /***** Import Data **********/
+    /**
+     * @param $path
+     * @param null $storeId
+     * @return mixed
+     * @throws \Magento\Framework\Exception\LocalizedException
+     */
+    public function importProducts($page = 1)
+    {
+
+        $erplyProducts = $this->getProducts(array('pageNo' => $page, 'getStockInfo'=>1, 'recordsOnPage'=> 100));
+        $erplyProducts = $erplyProducts['records'];
+
+        if(is_array($erplyProducts)){
+            foreach ($erplyProducts as $key => &$_erplyProduct) {
+                if($_erplyProduct['active']) {
+                    $this->createProduct($_erplyProduct);
+                } else {
+                    $this->skipRecords++;
+                }              
+            }
+        }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+
+        return $response;
+    }
+
     /***** Import Data **********/
     /**
      * @param $path
@@ -154,29 +184,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                 if(is_array($erplyProducts)){
                     foreach ($erplyProducts as $key => &$_erplyProduct) {
                         if($cli !== null) { echo ".";}
-                        // echo "<pre>";
-                        // print_r($_erplyProduct);
-                        // continue;
                         if($_erplyProduct['active']) {
-                             switch ($_erplyProduct['type']) {
-                                case 'PRODUCT':
-                                    # code...
-                                    $this->createProduct($_erplyProduct);
-                                    break;
-                                
-                                 case 'BUNDLE':
-                                    # code...
-                                    //$this->createProduct($record);
-                                    break;
-
-                                default:
-                                    # code...
-                                    // $this->createProduct($record);
-                                    break;
-                            }
+                            echo "<pre>";
+                            print_r($_erplyProduct);
+                            $this->createProduct($_erplyProduct);
                         } else {
                             $this->skipRecords++;
-                        }               
+                        }              
                     }
                 }
             }
@@ -215,9 +229,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $product->setWeight($_erplyProduct['netWeight']); // weight of product
             $product->setVisibility(4); // visibilty of product (catalog / search / catalog, search / Not visible individually)
             $product->setTaxClassId(0); // Tax class id
-            $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)
-            $product->setPrice($_erplyProduct['price']); // price of product
-            //$product->setSpecialPrice($elkoProduct->discountPrice); // price of product
+            if($_erplyProduct['type'] == "BUNDLE") {
+                $product->setTypeId('bundle');
+            } else {
+                $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)     
+            }
+            $product->setPrice($_erplyProduct['priceWithVat']); // price of product
+            $product->setUrlKey($_erplyProduct['code'].strtotime('now')); 
             $product->setDescription($_erplyProduct['longdesc']);
             $product->setShortDescription($_erplyProduct['description']);
 
@@ -407,6 +425,17 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
         $customerAddress->save();
         return true;
+    }
+
+        public function syncProductCategory(){
+         $customers = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getProductCategories");
+        if($response) {
+            $customers  = json_decode($response, true);
+        }
+
+        return $customers;
     }
 }
 

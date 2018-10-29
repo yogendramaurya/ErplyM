@@ -69,4 +69,30 @@ class Button extends \Magento\Config\Block\System\Config\Form\Field
         );
         return $this->_toHtml();
     }
+
+    public function getSummary()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        $response = $helperObj->getProducts(array('pageNo' => 1, 'active' => 1,'recordsOnPage'=> 1));
+        $result = [
+                'totalRecords' => 0,
+                'page' => 0
+            ];
+        if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
+
+            $recordsTotal = $response['status']['recordsTotal'];
+            $totalPages = ceil($recordsTotal/2);
+              $result = [
+                'totalRecords' => (int)$recordsTotal,
+                'page' => (int)$totalPages
+            ];
+
+
+            return $result;
+        }
+
+        return null;
+    }
+
 }

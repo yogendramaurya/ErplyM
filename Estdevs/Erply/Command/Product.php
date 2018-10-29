@@ -42,6 +42,7 @@ class Product extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $this->state->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML); 
         $response = $this->_helper->setProducts("cli");
     }
 } 

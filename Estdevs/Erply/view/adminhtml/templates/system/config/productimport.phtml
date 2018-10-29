@@ -3,54 +3,113 @@
         <span><span><span><?php echo $block->escapeHtml($block->getButtonLabel()); ?></span></span></span>
     </button>
 </div>
-<span class="collect-indicator" id="collect_span">
-    <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
-    <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
-    <span id="collect_message_span"></span>
-</span>
+
+<?php
+    $summary = $block->getSummary();
+
+?>
+
+
+
+<div id="popup-modal" style="display:none;">
+    <?php if($summary !== null):?>
+        There are <?php echo $summary["totalRecords"];?> active products in ERPLY POS System.
+    <?php endif;?>
+    <br>
+    <span class="collect-indicator" id="collect_span">
+        <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/> Please Wait ..
+        <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
+        <span id="collect_message_span"></span>
+    </span>
+    <br>Product Imported :<span class="importproductcount">0</span> / <?php echo $summary["totalRecords"];?>.
+    <div class="summary" style="border: 1px solid #ddd;"><div class="w3-grey" style="background:green;height:24px;width:0%"></div></div>
+    <div class="consoleResult" style="background:#000; padding: 10px; color: #fff;"></div>
+</div>
+
 <script>
-require([
-    'jquery',
-    'prototype',
-], function($){
-	var collectSpan = jQuery('#collect_span');
-    function syncronize() {
-        params = {
-        };
+    require(
+        [
+            'jquery',
+            //'prototype',
+            'Magento_Ui/js/modal/modal'
+        ],
+        function(
+            $,
+            modal
+        ) {
+            var totalPages = <?php echo $summary["page"];?>;
+            var page = 1;
+            var summary = true;
+            var progress = 0;
 
-        new Ajax.Request('<?php /* @escapeNotVerified */ echo $block->getAjaxCheckUrl() ?>', {
-            loaderArea:     false,
-            asynchronous:   true,
-            parameters:     params,
-            onCreate: function() {
-                    collectSpan.find('.collected').hide();
-                    collectSpan.find('.processing').show();
-                    jQuery('#collect_message_span').text('');
-                },
-            onSuccess: function(response) {
-               // var response = JSON.parse(transport.responseText);
-                collectSpan.find('.processing').hide();
- 
-                var resultText = '';
-                if (response.status > 200) {
-                    resultText = response.statusText;
-                } else {
-                    resultText = 'Products have been imported successfully';
-                    collectSpan.find('.collected').show();
-                }
-                jQuery('#collect_message_span').text(resultText);
+            var options = {
+                type: 'popup',
+                responsive: true,
+                innerScroll: true,
+                title: 'Erply POS syncronization',
+                buttons: [{
+                    text: $.mage.__('Close'),
+                    class: '',
+                    click: function () {
+                        this.closeModal();
+                    }
+                }]
+            };
+            var collectSpan = jQuery('#collect_span');
+            function syncronize() {
+                params = {
+                    'page': page,
+                    'summary': summary
+                };
 
-                var json = response.responseJSON;
-                if (typeof json.time != 'undefined') {
-                    jQuery('#row_mageworx_alsobought_general_collect_time').find('.value .time').text(json.time);
-                }
+                new Ajax.Request('<?php echo $block->getAjaxCheckUrl() ?>', {
+                    loaderArea:     false,
+                    asynchronous:   true,
+                    parameters:     params,
+                    onCreate: function() {
+                            collectSpan.find('.collected').hide();
+                            collectSpan.find('.processing').show();
+                            jQuery('#collect_message_span').text('');
+                        },
+                    onSuccess: function(response) {                   
+                        collectSpan.find('.processing').hide();
+                        var resultText = '';
+                        if (response.status > 200) {
+                            resultText = response.statusText;
+                            jQuery("#popup-modal .consoleResult").append("......");
+                        } else {
+                            resultText = 'Products have been imported successfully';
+                            
+                        }
+                        jQuery('#collect_message_span').text(response.responseJSON.message);
+                        jQuery("#popup-modal .consoleResult").append(response.responseJSON.message);
+                        progress = page*100/totalPages;
+                        if(progress >100) {progress =100;}    
+                        jQuery("#popup-modal .summary .w3-grey").css("width", progress+"%");
+                        
+                        if(page == totalPages) {
+                            collectSpan.find('.processing').hide();
+                        }
+                        jQuery("#popup-modal .importproductcount").text(page*100);
+                        
+                        page++;
+                    }
+                });
+
+                return;
             }
-        });
-    }
-    $(document).ready(function($) {
-	   	$("#imp-pro").on( "click", function() {	            
-	        syncronize();
-	    });
-    }); 
-});
+            var popup = modal(options, $('#popup-modal'));
+            $("#imp-pro").on('click',function(){ 
+                $("#popup-modal").modal("openModal");
+                jQuery("#popup-modal .consoleResult").append("Product Importing started.. <br>");
+                setInterval(function(){
+                    if(page <= totalPages) {
+                        console.log(page);
+                        syncronize();   
+                    }
+                }, 2000);
+            });
+
+        }
+    );
 </script>

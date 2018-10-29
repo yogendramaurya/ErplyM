@@ -53,10 +53,8 @@ class Import extends \Magento\Backend\App\Action
      */
     public function execute()
     {
-         $result = $this->resultJsonFactory->create();
-         $lastCollectTime ="21";
-   //return $result->setData(['success' => true,  'time' => $lastCollectTime]);
-       
+        $result = $this->resultJsonFactory->create();
+        $lastCollectTime ="21";     
         try {
             $products = $this->_helper->setCustomers();     
             $lastCollectTime ="21";
