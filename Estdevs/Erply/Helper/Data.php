@@ -35,13 +35,18 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     protected $customerFactory;
     protected $storeManager;
     protected $addressFactory;
+    protected $_configWriter;
+    protected $_storeManager;
+    public $mapcat = array();
 
     public function __construct(
         \Estdevs\Erply\Service\ImportImageService $importImageService,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Customer\Model\CustomerFactory $customerFactory,
         \Magento\Customer\Model\AddressFactory $addressFactory,
-        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+        //\Magento\Store\Model\StoreManagerInterface $storeManager,
+        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
+        \Magento\Framework\App\Config\Storage\WriterInterface $configWriter
     ) {
         $this->_scopeConfig = $scopeConfig;
         $this->_importImageService = $importImageService;
@@ -51,6 +56,8 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         $this->erply_customercode =  $this->_scopeConfig->getValue(self::XML_ERPLY_CUSTOMER_CODE);
         $this->erply_username =  $this->_scopeConfig->getValue(self::XML_ERPLY_USERNAME);
         $this->erply_password =  $this->_scopeConfig->getValue(self::XML_ERPLY_PASSWORD);
+        $this->_configWriter = $configWriter;
+        //$this->_storeManager = $storeManager;
     }
     public function getLastApplyTime()
     {
@@ -139,10 +146,15 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      * @return mixed
      * @throws \Magento\Framework\Exception\LocalizedException
      */
-    public function importProducts($page = 1)
+    public function importProducts($page = 1, $type = 0)
     {
-
-        $erplyProducts = $this->getProducts(array('pageNo' => $page, 'getStockInfo'=>1, 'recordsOnPage'=> 100));
+        if($type > 0) {
+            $erplyProducts = $this->getProducts(array('pageNo' => $page, 'type' => "BUNDLE", 'getStockInfo'=>1, 'recordsOnPage'=> $this->getLimit()));
+        } else {
+            $erplyProducts = $this->getProducts(array('pageNo' => $page, 'type' => "PRODUCT", 'getStockInfo'=>1, 'recordsOnPage'=> $this->getLimit()));
+            
+        }
+        $this->mapcat =  $this->getMappedCategory();       
         $erplyProducts = $erplyProducts['records'];
 
         if(is_array($erplyProducts)){
@@ -171,7 +183,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      */
     public function setProducts($cli = null)
     {
-
+        $this->mapcat =  $this->getMappedCategory();
         $response = $this->getProducts(array('pageNo' => 1, 'recordsOnPage'=> 1));
         if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
             $this->totalRecords = $response['status']['recordsTotal'];
@@ -218,7 +230,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
         $attributeSetId = 4;//$this->getAttributeSet();
-
+        $websiteId = $this->getWebsite();
         $product = $objectManager->get('Magento\Catalog\Model\Product');
         if(!$product->getIdBySku($_erplyProduct["code"])) {
             $product = $objectManager->create('\Magento\Catalog\Model\Product');        
@@ -229,6 +241,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $product->setWeight($_erplyProduct['netWeight']); // weight of product
             $product->setVisibility(4); // visibilty of product (catalog / search / catalog, search / Not visible individually)
             $product->setTaxClassId(0); // Tax class id
+            $product->setWebsiteIds($websiteId);
             if($_erplyProduct['type'] == "BUNDLE") {
                 $product->setTypeId('bundle');
             } else {
@@ -238,6 +251,20 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $product->setUrlKey($_erplyProduct['code'].strtotime('now')); 
             $product->setDescription($_erplyProduct['longdesc']);
             $product->setShortDescription($_erplyProduct['description']);
+
+            #get catgory ID
+            $categoriesIds = array(2);
+            if(isset($_erplyProduct['categoryID']) && $_erplyProduct['categoryID'] > 0){
+                $cId = $_erplyProduct['categoryID'];
+                if(array_key_exists($cId, $this->mapcat))
+                {
+                    //$this->mapcat[$cId];
+                    array_push($categoriesIds, $this->mapcat[$cId]);
+                }
+            }
+            $product->setCategoryIds($categoriesIds);
+
+
 
             $quantity = 0;
             if(isset($_erplyProduct["warehouses"])){
@@ -427,15 +454,52 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         return true;
     }
 
-        public function syncProductCategory(){
-         $customers = [];
+    public function syncProductCategory()
+    {
+        $customers = [];
         $api = $this->erplyApi();
         $response = $api->sendRequest("getProductCategories");
         if($response) {
             $customers  = json_decode($response, true);
+            $customers = $customers["records"];
         }
 
         return $customers;
+    }
+
+    public function saveErplyCateoryMap($value)
+    {
+        
+        $this->_configWriter->save('erply/mapcategory/mapcategory', $value, "default", 0);
+        
+        return $this;
+    }
+    public function getMappedCategory()
+    {
+        $value = $this->_scopeConfig->getValue("erply/mapcategory/mapcategory");
+       
+        $json = json_decode($value);
+        $category = [];
+        foreach($json as $jsonObj){
+            $k = $jsonObj->id;
+            $category["$k"] = $jsonObj->mcat;
+        }
+        // print_r($category);
+        return $category;
+    }
+    public function getLimit(){
+        return 2;
+    }
+    public function getWebsite()
+    {
+      // $stores = $this->_storeManager->getWebsites(true, false);
+        $websiteIds = array(1);
+        // foreach ($stores as $store) {
+        //     $websiteId = $store["website_id"];
+        //     array_push($websiteIds, $websiteId);
+        // }
+        // print_r($stores);
+        return $websiteIds; 
     }
 }
 

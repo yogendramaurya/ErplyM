@@ -10,7 +10,7 @@
  */
 
 namespace Estdevs\Erply\Block\System\Config\Form;
- 
+
 use Magento\Framework\App\Config\ScopeConfigInterface;
  
 class Button extends \Magento\Config\Block\System\Config\Form\Field
@@ -94,5 +94,40 @@ class Button extends \Magento\Config\Block\System\Config\Form\Field
 
         return null;
     }
+
+    public function getErplyCategory()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        return $helperObj->syncProductCategory();
+    }
+
+    public function getMagentoCategory()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $categoryFactory = $objectManager->create('Magento\Catalog\Model\ResourceModel\Category\CollectionFactory');
+        $categories = $categoryFactory->create()                              
+            ->addAttributeToSelect('*')
+            ->setStore($this->_storeManager->getStore()); //categories from current store will be fetched
+        return $categories;
+    }
+
+    public function getmapping(){
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        return $helperObj->getMappedCategory();
+    }
+
+    public function getLimit(){
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        return $helperObj->getLimit();
+    }
+
+    public function getPTypes()
+    {
+        return json_encode(['PRODUCT', 'BUNDLE']);
+    }
+
 
 }
