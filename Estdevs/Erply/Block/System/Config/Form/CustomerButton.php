@@ -69,4 +69,56 @@ class CustomerButton extends \Magento\Config\Block\System\Config\Form\Field
         );
         return $this->_toHtml();
     }
+    public function getSummary()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        $response = $helperObj->getCustomers(array('pageNo' => 1, 'active' => 1,'recordsOnPage'=> 1));
+        $result = [
+                'totalRecords' => 0,
+                'page' => 0
+            ];
+        if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
+
+            $recordsTotal = $response['status']['recordsTotal'];
+            $totalPages = ceil($recordsTotal/2);
+              $result = [
+                'totalRecords' => (int)$recordsTotal,
+                'page' => (int)$totalPages
+            ];
+
+
+            return $result;
+        }
+
+        return null;
+    }
+
+    public function getErplyCategory()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        return $helperObj->syncProductCategory();
+    }
+
+    public function getMagentoCategory()
+    {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $categoryFactory = $objectManager->create('Magento\Catalog\Model\ResourceModel\Category\CollectionFactory');
+        $categories = $categoryFactory->create()                              
+            ->addAttributeToSelect('*')
+            ->setStore($this->_storeManager->getStore()); //categories from current store will be fetched
+        return $categories;
+    }
+
+    public function getLimit(){
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
+        $helperObj = $objectManager->get('Estdevs\Erply\Helper\Data');
+        return $helperObj->getLimit();
+    }
+
+    public function getPTypes()
+    {
+        return json_encode(['PRODUCT', 'BUNDLE']);
+    }
 }

@@ -310,6 +310,23 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         return $customers;
     }
 
+    public function importCustomers($page = 1){
+        $erplyCustomers = $this->getCustomers(array('pageNo' => $page, 'recordsOnPage'=> $this->getLimit()));  
+        $erplyCustomers = $erplyCustomers['records'];
+
+        if(is_array($erplyCustomers)){
+            foreach ($erplyCustomers as $key => &$erplyCustomer) {
+                $this->createCustomer($erplyCustomer);
+            }
+        }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+
+        return $response;
+    }
+
     /**
      *  Import Customer
      * @param $path
@@ -358,14 +375,28 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     public function createCustomer($record)
     {
         $email = $record['email'];
+        if($email == ''){
+            $this->skipRecords++;
+            return; 
+        }
         $firstName = $record['firstName'] == "" ? $record['fullName'] : $record['firstName'];
+        $lastName = $record['lastName'] == "" ? $record['fullName'] : $record['lastName'];
+        if($firstName == ''){
+            $this->skipRecords++;
+            return; 
+        }
+        if($lastName == ''){
+            $this->skipRecords++;
+            return;
+        }
+
         $websiteId  = $this->storeManager->getWebsite()->getWebsiteId();
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $customerFactory = $objectManager->get('\Magento\Customer\Model\CustomerFactory')->create();
         $customer = $customerFactory->setWebsiteId($websiteId)->loadByEmail($email);
         if ($customer->getId()) {
-             $this->skipRecords++;
-                return; 
+            $this->skipRecords++;
+            return; 
         } else {
             $data = [
                 'firstname' => $firstName,
@@ -412,11 +443,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                 'erply_homeStoreID' =>$record['homeStoreID'],
             ];
 
-            
-            $customer->setFirstname($firstName);
-            $customer->setLastname($record['lastName']);
-            $customer->setEmail($record['email']);
-
+            $customer->setData($data);
             try {
                 $customer->save();
                 $this->setcustomerAddress($customer->getId(), $record, $objectManager);

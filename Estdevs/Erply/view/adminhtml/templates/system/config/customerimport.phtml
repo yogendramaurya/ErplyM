@@ -1,58 +1,122 @@
+<?php $summary = $block->getSummary();?>
 <div class="pp-buttons-container">
     <button id="customerimport" onclick="return false;">
         <span><span><span><?php echo $block->escapeHtml($block->getButtonLabel()); ?></span></span></span>
     </button>
 </div>
-<span class="collect-indicator" id="customer_collect_span">
-    <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
-    <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
-    <span id="customerimp_collect_message_span">safdsf</span>
-</span>
+<!--Customer Import Popup-->
+<div id="customer-popup-modal" style="display:none;">
+    <?php if($summary !== null):?>
+        <h1>There are <?php echo $summary["totalRecords"];?> active customers in ERPLY POS System.</h1>
+    <?php endif;?>
+    <hr>
+    <h3>New Customer Imported : <span class="importcustomercount"> 0</span> / <?php echo $summary["totalRecords"];?>.<h3>
+    <table style="width:100%">
+        <tr>
+            <td style="width:50%"> 
+                    <span class="collect-indicator" id="collect_span_customer">
+                    <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
+                    <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
+                </span>
+                Customer Import Progress </td>
+            <td style="width:50%">
+                <div class="summary psimple" style="border: 1px solid #ddd;">
+                    <div class="w3-grey" style="background:green;height:24px;width:0%"></div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    <br>
+    <div class="consoleResult" style="background:#000; padding: 10px; color: #fff;"></div>
+</div>
+<!--Customer Import End-->
 <script>
-require([
-    'jquery',
-    'prototype',
-], function($){
-    var customercollectSpan = jQuery('#customer_collect_span');
-    function customersyncronize() {
-        params = {
-        };
+    require(
+        [
+            'jquery',
+            'Magento_Ui/js/modal/modal'
+        ],
+        function(
+            $,
+            modal
+        ) {
+            var totalPages = <?php echo $summary["page"];?>;
+            var page = 1;
+            var summary = true;
+            var progress = 0;
+            var importcustomercount = 0;
+            var ishit = true;
 
-        new Ajax.Request('<?php /* @escapeNotVerified */ echo $block->getAjaxCheckUrl() ?>', {
-            loaderArea:     false,
-            asynchronous:   true,
-            parameters:     params,
-            onCreate: function() {
-                customercollectSpan.find('.collected').hide();
-                customercollectSpan.find('.processing').show();
-                jQuery('#customerimp_collect_message_span').text('');
-            },
-            onSuccess: function(response) {
-               // var response = JSON.parse(transport.responseText);
-                customercollectSpan.find('.processing').hide();
- 
-                var resultText = '';
-                if (response.status > 200) {
+            var options = {
+                type: 'popup',
+                responsive: true,
+                innerScroll: true,
+                title: 'Erply POS syncronization',
+                buttons: [{
+                    text: $.mage.__('Close'),
+                    class: '',
+                    click: function () {
+                        this.closeModal();
+                    }
+                }]
+            };
+            var collectSpan = jQuery('#collect_span_customer');
+            function customersyncronize() {
+                params = {
+                    'page': page,
+                    'summary': summary,
+                };
+                ishit = false;
+                new Ajax.Request('<?php echo $block->getAjaxCheckUrl() ?>', {
+                    loaderArea:     false,
+                    asynchronous:   true,
+                    parameters:     params,
+                    onCreate: function() {
+                            collectSpan.find('.collected').hide();
+                            collectSpan.find('.processing').show();
+                        },
+                    onSuccess: function(response) {                   
+                        collectSpan.find('.processing').hide();
+                        var resultText = '';
+                        if (response.status > 200) {
+                            resultText = response.statusText;
+                            jQuery("#customer-popup-modal .consoleResult").append("......");
+                            
+                        } else {
+                            resultText = 'Customer have been imported successfully';                            
+                        }
+                        importcustomercount = importcustomercount + response.responseJSON.data.successRecords;
+                        console.log("--->"+importcustomercount);
+                        progress = page*100/totalPages;
+                        if(progress > 100) 
+                        {
+                            progress = 100;
+                        }
+                        jQuery("#customer-popup-modal .psimple .w3-grey").css("width", progress+"%");                     
+                        if(page == totalPages) {
+                            collectSpan.find('.collected').show();
+                            collectSpan.find('.processing').hide();
+                            jQuery("#customer-popup-modal .consoleResult").append("Customer Importing completed successfully.. <br>");
+                        }
+                        jQuery("#customer-popup-modal .importcustomercount").text(importcustomercount);                        
+                        page++;
+                        ishit= true;
+                    }
+                });
 
-                    resultText = response.responseText;
-                    resultText = 'Products have been imported successfully';
-                } else {
-                    resultText = 'Products have been imported successfully';
-                    collectSpan.find('.collected').show();
-                }
-                jQuery('#customerimp_collect_message_span').html(resultText);
-
-                var json = response.responseJSON;
-                if (typeof json.time != 'undefined') {
-                    jQuery('#row_mageworx_alsobought_general_collect_time').find('.value .time').text(json.time);
-                }
+                return;
             }
-        });
-    }
-    $(document).ready(function($) {
-        $("#customerimport").on( "click", function() {             
-            customersyncronize();
-        });
-    }); 
-});
+            var popup = modal(options, $('#customer-popup-modal'));
+            $("#customerimport").on('click',function(){ 
+                $("#customer-popup-modal").modal("openModal");
+                jQuery("#customer-popup-modal .consoleResult").append("Customer Importing started.. <br>");
+                setInterval(function(){
+                    if(page <= totalPages &&  ishit) {
+                        console.log(page);
+                        customersyncronize();   
+                    }
+                }, 3000);    
+            });
+        }
+    );
 </script>

@@ -54,12 +54,14 @@ class Import extends \Magento\Backend\App\Action
     public function execute()
     {
         $result = $this->resultJsonFactory->create();
+        $param = $this->getRequest()->getPostValue();
+        $page = $param["page"];
         $lastCollectTime ="21";     
         try {
-            $products = $this->_helper->setCustomers();     
+            $response = $this->_helper->importCustomers();     
             $lastCollectTime ="21";
             $message = "Customer imported successfully.";
-            return $result->setData(['success' => true, 'message'=> $message, 'time' => $lastCollectTime]);
+            return $result->setData(['success' => true, 'data'=>$response, 'message'=> $message, 'time' => $lastCollectTime]);
         } catch (Exception $e) {
             return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
         }
