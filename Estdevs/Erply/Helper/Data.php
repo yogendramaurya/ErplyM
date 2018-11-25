@@ -18,6 +18,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     const XML_ERPLY_USERNAME = 'estdevs_erply/configuration/erply_username';
     const XML_ERPLY_PASSWORD = 'estdevs_erply/configuration/erply_password';
     const XML_COLLECT_TIME = 'estdevs_erply/erplyProductImport/collect_time';
+    const XML_ERPLY_LIMIT = 'estdevs_erply/configuration/erply_limit';
 
     // summary import
     public $totalRecords = 0;
@@ -35,13 +36,19 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     protected $customerFactory;
     protected $storeManager;
     protected $addressFactory;
+    protected $_configWriter;
+    protected $_storeManager;
+    public $mapcat = array();
+    protected $logger;
 
     public function __construct(
         \Estdevs\Erply\Service\ImportImageService $importImageService,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Customer\Model\CustomerFactory $customerFactory,
         \Magento\Customer\Model\AddressFactory $addressFactory,
-        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
+        \Magento\Framework\App\Config\Storage\WriterInterface $configWriter,
+        \Psr\Log\LoggerInterface $logger
     ) {
         $this->_scopeConfig = $scopeConfig;
         $this->_importImageService = $importImageService;
@@ -51,6 +58,8 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         $this->erply_customercode =  $this->_scopeConfig->getValue(self::XML_ERPLY_CUSTOMER_CODE);
         $this->erply_username =  $this->_scopeConfig->getValue(self::XML_ERPLY_USERNAME);
         $this->erply_password =  $this->_scopeConfig->getValue(self::XML_ERPLY_PASSWORD);
+        $this->_configWriter = $configWriter;
+        $this->logger = $logger;
     }
     public function getLastApplyTime()
     {
@@ -132,6 +141,43 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         return $products;
     }
 
+     /***** Import Data **********/
+    /**
+     * @param $path
+     * @param null $storeId
+     * @return mixed
+     * @throws \Magento\Framework\Exception\LocalizedException
+     */
+    public function importProducts($page = 1, $type = 0)
+    {
+
+        if($type > 0) {
+            $erplyProducts = $this->getProducts(array('pageNo' => $page, 'type' => "BUNDLE", 'getStockInfo'=>1, 'recordsOnPage'=> $this->getLimit()));
+        } else {
+            $erplyProducts = $this->getProducts(array('pageNo' => $page, 'type' => "PRODUCT", 'getStockInfo'=>1, 'recordsOnPage'=> $this->getLimit()));
+            
+        }
+        $this->mapcat =  $this->getMappedCategory();       
+        $erplyProducts = $erplyProducts['records'];
+
+        if(is_array($erplyProducts)){
+            foreach ($erplyProducts as $key => &$_erplyProduct) {
+                if($_erplyProduct['active']) {
+                    $this->createProduct($_erplyProduct);
+                } else {
+                    $this->skipRecords++;
+                    $this->logger->info("skip-".$_erplyProduct['code']);
+                }              
+            }
+        }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+
+        return $response;
+    }
+
     /***** Import Data **********/
     /**
      * @param $path
@@ -141,7 +187,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      */
     public function setProducts($cli = null)
     {
-
+        $this->mapcat =  $this->getMappedCategory();
         $response = $this->getProducts(array('pageNo' => 1, 'recordsOnPage'=> 1));
         if(is_array($response['status']) && $response['status']['responseStatus'] == "ok"){
             $this->totalRecords = $response['status']['recordsTotal'];
@@ -154,29 +200,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                 if(is_array($erplyProducts)){
                     foreach ($erplyProducts as $key => &$_erplyProduct) {
                         if($cli !== null) { echo ".";}
-                        // echo "<pre>";
-                        // print_r($_erplyProduct);
-                        // continue;
                         if($_erplyProduct['active']) {
-                             switch ($_erplyProduct['type']) {
-                                case 'PRODUCT':
-                                    # code...
-                                    $this->createProduct($_erplyProduct);
-                                    break;
-                                
-                                 case 'BUNDLE':
-                                    # code...
-                                    //$this->createProduct($record);
-                                    break;
-
-                                default:
-                                    # code...
-                                    // $this->createProduct($record);
-                                    break;
-                            }
+                            echo "<pre>";
+                            print_r($_erplyProduct);
+                            $this->createProduct($_erplyProduct);
                         } else {
                             $this->skipRecords++;
-                        }               
+                        }              
                     }
                 }
             }
@@ -199,12 +229,13 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     public function createProduct($_erplyProduct = null)
     {
         if($_erplyProduct == null) return;
+        $this->logger->info(json_encode($_erplyProduct['code']));
 
         // Write Validate code for required value to create product
 
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance(); // instance of object manager
         $attributeSetId = 4;//$this->getAttributeSet();
-
+        $websiteId = $this->getWebsite();
         $product = $objectManager->get('Magento\Catalog\Model\Product');
         if(!$product->getIdBySku($_erplyProduct["code"])) {
             $product = $objectManager->create('\Magento\Catalog\Model\Product');        
@@ -215,16 +246,30 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             $product->setWeight($_erplyProduct['netWeight']); // weight of product
             $product->setVisibility(4); // visibilty of product (catalog / search / catalog, search / Not visible individually)
             $product->setTaxClassId(0); // Tax class id
-            $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)
-            $product->setPrice($_erplyProduct['price']); // price of product
-            //$product->setSpecialPrice($elkoProduct->discountPrice); // price of product
+            $product->setWebsiteIds($websiteId);
+            if($_erplyProduct['type'] == "BUNDLE") {
+                $product->setTypeId('bundle');
+            } else {
+                $product->setTypeId('simple'); // type of product (simple/virtual/downloadable/configurable)     
+            }
+            $product->setPrice($_erplyProduct['priceWithVat']); // price of product
+            $product->setUrlKey($_erplyProduct['code'].strtotime('now')); 
             $product->setDescription($_erplyProduct['longdesc']);
             $product->setShortDescription($_erplyProduct['description']);
 
+            #get catgory ID
+            $categoriesIds = array(2);
+            if(isset($_erplyProduct['categoryID']) && $_erplyProduct['categoryID'] > 0){
+                $cId = $_erplyProduct['categoryID'];
+                if(array_key_exists($cId, $this->mapcat))
+                {
+                    array_push($categoriesIds, $this->mapcat[$cId]);
+                }
+            }
+            $product->setCategoryIds($categoriesIds);
             $quantity = 0;
             if(isset($_erplyProduct["warehouses"])){
                 foreach ($_erplyProduct["warehouses"] as $key => $_inventory) {
-                    # code...
                     $quantity = $_inventory["totalInStock"];
                 }
             }
@@ -239,7 +284,16 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                     'qty' => (int)$quantity
                 )
             );
-            $product->save();
+
+            try {
+                $product->save();
+            } catch (Exception $e) {
+                $this->skipRecords++;
+               $this->logger->info("skip-".$_erplyProduct['code']);
+                 $this->logger->info($e->getMessage());
+            }
+
+            
             $this->successRecords++;
             if(isset($_erplyProduct['images'])) { 
                 foreach ($_erplyProduct['images'] as $key => $imagePath) {
@@ -250,6 +304,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
             }
         } else {
             $this->skipRecords++;
+            $this->logger->info("skip-".$_erplyProduct['code']);
         }
     }
 
@@ -263,6 +318,23 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         }
 
         return $customers;
+    }
+
+    public function importCustomers($page = 1){
+        $erplyCustomers = $this->getCustomers(array('pageNo' => $page, 'recordsOnPage'=> $this->getLimit()));  
+        $erplyCustomers = $erplyCustomers['records'];
+
+        if(is_array($erplyCustomers)){
+            foreach ($erplyCustomers as $key => &$erplyCustomer) {
+                $this->createCustomer($erplyCustomer);
+            }
+        }
+
+        $response['totalRecords'] = $this->totalRecords;
+        $response['successRecords'] = $this->successRecords;
+        $response['skipRecords'] = $this->skipRecords + $this->updatedRecords;
+
+        return $response;
     }
 
     /**
@@ -313,14 +385,32 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
     public function createCustomer($record)
     {
         $email = $record['email'];
+        if($email == ''){
+            $this->skipRecords++;
+            $this->logger->info("email-skip-".$record['customerID']);
+            return; 
+        }
         $firstName = $record['firstName'] == "" ? $record['fullName'] : $record['firstName'];
+        $lastName = $record['lastName'] == "" ? $record['fullName'] : $record['lastName'];
+        if($firstName == ''){
+            $this->skipRecords++;
+            $this->logger->info("firstName-skip-".$firstName);
+            return; 
+        }
+        if($lastName == ''){
+            $this->skipRecords++;
+            $this->logger->info("lastName-skip-".$lastName);
+            return;
+        }
+
         $websiteId  = $this->storeManager->getWebsite()->getWebsiteId();
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $customerFactory = $objectManager->get('\Magento\Customer\Model\CustomerFactory')->create();
         $customer = $customerFactory->setWebsiteId($websiteId)->loadByEmail($email);
         if ($customer->getId()) {
-             $this->skipRecords++;
-                return; 
+            $this->skipRecords++;
+            $this->logger->info("already-skip-".$record['customerID']);
+            return; 
         } else {
             $data = [
                 'firstname' => $firstName,
@@ -367,17 +457,20 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
                 'erply_homeStoreID' =>$record['homeStoreID'],
             ];
 
-            
-            $customer->setFirstname($firstName);
-            $customer->setLastname($record['lastName']);
-            $customer->setEmail($record['email']);
 
+            $customer->setData($data);
             try {
+                 $customer->setWebsiteId(1)
+                    ->setFirstname($firstName)
+                    ->setLastname($lastName)
+                    ->setEmail($email)
+                    ->setPassword("123654");
                 $customer->save();
-                $this->setcustomerAddress($customer->getId(), $record, $objectManager);
+                //$this->setcustomerAddress($customer->getId(), $record, $objectManager);
                 $this->successRecords++;
             } catch (Exception $e) {
                 $this->skipRecords++;
+                $this->logger->info("already-exception-skip-".$record['customerID']);
                 return;
             }
         }
@@ -407,6 +500,76 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
 
         $customerAddress->save();
         return true;
+    }
+
+    public function syncProductCategory()
+    {
+        $customers = [];
+        $api = $this->erplyApi();
+        $response = $api->sendRequest("getProductCategories");
+        if($response) {
+            $customers  = json_decode($response, true);
+            $customers = $customers["records"];
+        }
+
+        return $customers;
+    }
+
+    public function saveErplyCateoryMap($value)
+    {
+        $this->_configWriter->save('erply/mapcategory/mapcategory', $value, "default", 0);        
+        return $this;
+    }
+    public function getMappedCategory()
+    {
+        $value = $this->_scopeConfig->getValue("erply/mapcategory/mapcategory");
+       
+        $json = json_decode($value);
+        $category = [];
+        foreach($json as $jsonObj){
+            $k = $jsonObj->id;
+            $category["$k"] = $jsonObj->mcat;
+        }
+        // print_r($category);
+        return $category;
+    }
+    public function getLimit(){
+
+        $limit = (int)$this->_scopeConfig->getValue(self::XML_ERPLY_LIMIT);
+        $limit = $limit > 0 ? $limit :100;
+        return $limit;
+    }
+    public function getWebsite()
+    {
+      // $stores = $this->_storeManager->getWebsites(true, false);
+        $websiteIds = array(1);
+        // foreach ($stores as $store) {
+        //     $websiteId = $store["website_id"];
+        //     array_push($websiteIds, $websiteId);
+        // }
+        // print_r($stores);
+        return $websiteIds; 
+    }
+
+    public function getErplyRecordsCount()
+    {
+        $erplyRecords = array();
+        $products = $this->getProducts(array('pageNo' => 1, 'type' => "PRODUCT",'active' => 1,'recordsOnPage'=> 1));
+        if(is_array($products['status']) && $products['status']['responseStatus'] == "ok"){
+            $erplyRecords["simpleproducts"] = $products['status']['recordsTotal'];
+        }
+        $bundleProducts = $this->getProducts(array('pageNo' => 1, 'type' => "BUNDLE",'active' => 1,'recordsOnPage'=> 1));
+        if(is_array($bundleProducts['status']) && $bundleProducts['status']['responseStatus'] == "ok"){
+            $erplyRecords["bundleproducts"] = $bundleProducts['status']['recordsTotal'];
+        }
+        $customers = $this->getCustomers(array('pageNo' => 1, 'active' => 1,'recordsOnPage'=> 1));
+        if(is_array($customers['status']) && $customers['status']['responseStatus'] == "ok"){
+            $erplyRecords["customers"] = $customers['status']['recordsTotal'];
+        }
+
+        $this->_configWriter->save('erply/information/records', json_encode($erplyRecords), "default", 0);
+        $this->logger->info(json_encode($erplyRecords));
+        return $erplyRecords;
     }
 }
 

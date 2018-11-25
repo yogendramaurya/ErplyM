@@ -30,6 +30,9 @@
                 <field id="erply_password" translate="label" type="text" sortOrder="2" showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Password</label>
                 </field>
+                <field id="erply_limit" translate="label" type="text" sortOrder="2" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Limit</label>
+                </field>
             </group>
             <group id="erplyProductImport" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
 

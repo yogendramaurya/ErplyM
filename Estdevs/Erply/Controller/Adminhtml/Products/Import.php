@@ -37,8 +37,7 @@ class Import extends \Magento\Backend\App\Action
     public function __construct(
         \Magento\Backend\App\Action\Context $context,
         JsonFactory $resultJsonFactory,
-        \Estdevs\Erply\Helper\Data $helper
-        
+        \Estdevs\Erply\Helper\Data $helper        
     ) {
 		
         parent::__construct($context);
@@ -55,13 +54,43 @@ class Import extends \Magento\Backend\App\Action
     public function execute()
     {
         $result = $this->resultJsonFactory->create();
-        try {
-            $products = $this->_helper->setProducts();     
-            $lastCollectTime ="21";
-            $message = "Product imported successfully.";
-            return $result->setData(['success' => true, 'message'=> $message, 'time' => $lastCollectTime]);
-        } catch (Exception $e) {
-            return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
+        $param = $this->getRequest()->getPostValue();
+        if(isset($param["is_category"])){
+            $categorymapp = $param["data"];            
+            $this->_helper->saveErplyCateoryMap($categorymapp);
+            return $result->setData(['success' => true, 'message'=> "saved successfully."]);
         }
+        $page = $param["page"];
+        $ptype = $param["ptype"];
+        // Bundle product
+        if($ptype == "true"){
+            try {
+                $response = $this->_helper->importProducts($page, 1);     
+                $lastCollectTime ="21";
+                $message = "Product imported successfully.<br>";
+                return $result->setData(['success' => true, 'data'=>$response, 'message'=> $message, 'time' => $lastCollectTime]);
+            } catch (Exception $e) {
+                return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
+            }
+        } else {
+            try {
+                $response = $this->_helper->importProducts($page, 0);     
+                $lastCollectTime ="21";
+                $message = "Product imported successfully.<br>";
+                return $result->setData(['success' => true, 'data'=>$response, 'message'=> $message, 'time' => $lastCollectTime]);
+            } catch (Exception $e) {
+                return $result->setData(['success' => true, 'message'=> $e->getMessage(),'time' => $lastCollectTime]);
+            }
+        }
+
+        
+
+
+
+    }
+
+    public function saveMapping()
+    {
+
     }
 }

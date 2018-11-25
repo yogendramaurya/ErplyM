@@ -1,56 +1,299 @@
+<?php
+    $summary = $block->getSummary();
+    $mapping = $block->getmapping();
+    $limit = $block->getLimit();
+    $types = $block->getPTypes();
+?>
+
 <div class="pp-buttons-container">
+    <button id="erplycatmap" onclick="return false;">
+        <span><span><span>Category mapping</span></span></span>
+    </button>
     <button id="imp-pro" onclick="return false;">
         <span><span><span><?php echo $block->escapeHtml($block->getButtonLabel()); ?></span></span></span>
     </button>
 </div>
-<span class="collect-indicator" id="collect_span">
-    <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
-    <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
-    <span id="collect_message_span"></span>
-</span>
+<!--Category Mappping popup start-->
+<div id="categorymapping">
+    <table>
+            <?php 
+            $erplycatgories = $block->getErplyCategory();
+            $magentocategories = $block->getMagentoCategory();
+            ?>
+            <tr>
+                    <th></th>
+                    <th>Erply POS Category</th>
+                    <th>Magento Category </th>
+                </tr>
+            <?php $i=0;foreach($erplycatgories as $_erplycategory):?>
+                <tr>
+                    <td><?php echo $i++;?></td>
+                    <td><label><?php echo $_erplycategory["productCategoryName"];?></label></td>
+                    <td>
+                        <select class="mappedcategory" name="<?php echo $_erplycategory["productCategoryID"];?>">
+                            <?php foreach ($magentocategories as $key => $value): ?>
+                                <?php $key = -1 ; if(array_key_exists($_erplycategory["productCategoryID"], $mapping)):?>
+                                <?php $key = $_erplycategory["productCategoryID"];?>
+                                <?php endif;?>
+                                <option <?php if($mapping["$key"] == $value->getId()):?> selected="selected" <?php endif;?> 
+                                value="<?php echo $value->getId();?>"><?php echo $value->getName();?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+            <?php endforeach;?>   
+            <tr>
+                <td colspan="2"></td>
+                <td>    
+                    <button id="categorymappingbtn" onclick="return false;">
+                        <span><span><span>Save Mapping</span></span></span>
+                    </button>
+                    <span id="resultmapping"></span>
+                </td>
+            </tr>     
+    </table>
+</div>
+<!--Category Mappping popup end-->
+<!--Product Import Popup-->
+<div id="popup-modal" style="display:none;">
+    <?php if($summary !== null):?>
+        <h3>There are <?php echo $summary["totalRecords"];?> active products in ERPLY POS System.</h3>
+    <?php endif;?>
+    <h3>Product Imported : <span class="importproductcount"> 0</span> / <?php echo $summary["totalRecords"];?>.<h3>
+    <table style="width:100%">
+        <tr>
+            <td style="width:50%"> 
+                    <span class="collect-indicator" id="collect_span_simple">
+                    <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
+                    <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
+                </span>
+                Simple Product Import Progress </td>
+            <td style="width:50%">
+                <div class="summary psimple" style="border: 1px solid #ddd;">
+                    <div class="w3-grey" style="background:green;height:24px;width:0%"></div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td><span class="collect-indicator" id="collect_span_bundle">
+                        <img class="processing" hidden="hidden" alt="Collecting" style="margin:0 5px" src="<?php echo $block->getViewFileUrl('images/process_spinner.gif') ?>"/>
+                        <img class="collected" hidden="hidden" alt="Collected" style="margin:-3px 5px" src="<?php echo $block->getViewFileUrl('images/rule_component_apply.gif') ?>"/>
+                    </span>Bundle Type Import Progress </td>
+            <td>
+                <div class="summary pbundle" style="border: 1px solid #ddd;">
+                    <div class="w3-grey" style="background:green;height:24px;width:0%"></div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    <br>
+    <!-- <div class="summary" style="border: 1px solid #ddd;">
+        <div class="w3-grey" style="background:green;height:24px;width:0%"></div>
+    </div> -->
+    <div class="consoleResult" style="background:#000; padding: 10px; color: #fff;"></div>
+</div>
+<!--Product Import End-->
 <script>
-require([
-    'jquery',
-    'prototype',
-], function($){
-	var collectSpan = jQuery('#collect_span');
-    function syncronize() {
-        params = {
-        };
+    require(
+        [
+            'jquery',
+            //'prototype',
+            'Magento_Ui/js/modal/modal'
+        ],
+        function(
+            $,
+            modal
+        ) {
+            var totalPages = <?php echo $summary["page"];?>;
+            var page = 1;
+            var summary = true;
+            var progress = 0;
+            var ptypes = JSON.parse('<?php echo $types;?>');
+            var pty = false;
+            var importproductcount = 0;
+            var ishit = true;
 
-        new Ajax.Request('<?php /* @escapeNotVerified */ echo $block->getAjaxCheckUrl() ?>', {
-            loaderArea:     false,
-            asynchronous:   true,
-            parameters:     params,
-            onCreate: function() {
-                    collectSpan.find('.collected').hide();
-                    collectSpan.find('.processing').show();
-                    jQuery('#collect_message_span').text('');
-                },
-            onSuccess: function(response) {
-               // var response = JSON.parse(transport.responseText);
-                collectSpan.find('.processing').hide();
- 
-                var resultText = '';
-                if (response.status > 200) {
-                    resultText = response.statusText;
+            var options = {
+                type: 'popup',
+                responsive: true,
+                innerScroll: true,
+                title: 'Erply POS syncronization',
+                buttons: [{
+                    text: $.mage.__('Close'),
+                    class: '',
+                    click: function () {
+                        this.closeModal();
+                    }
+                }]
+            };
+            function createCookie(name, value, days) {
+                var expires;
+
+                if (days) {
+                    var date = new Date();
+                    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                    expires = "; expires=" + date.toGMTString();
                 } else {
-                    resultText = 'Products have been imported successfully';
-                    collectSpan.find('.collected').show();
+                    expires = "";
                 }
-                jQuery('#collect_message_span').text(resultText);
-
-                var json = response.responseJSON;
-                if (typeof json.time != 'undefined') {
-                    jQuery('#row_mageworx_alsobought_general_collect_time').find('.value .time').text(json.time);
-                }
+                document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + expires + "; path=/";
             }
-        });
-    }
-    $(document).ready(function($) {
-	   	$("#imp-pro").on( "click", function() {	            
-	        syncronize();
-	    });
-    }); 
-});
+
+            function readCookie(name) {
+                var nameEQ = encodeURIComponent(name) + "=";
+                var ca = document.cookie.split(';');
+                for (var i = 0; i < ca.length; i++) {
+                    var c = ca[i];
+                    while (c.charAt(0) === ' ')
+                        c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0)
+                        return decodeURIComponent(c.substring(nameEQ.length, c.length));
+                }
+                return null;
+            }
+            function eraseCookie(name) {
+                createCookie(name, "", -1);
+            }
+            //createCookie('erplypagenumber', 200, 1);
+            var erplypage = readCookie('erplypagenumber');
+            if(erplypage != null) {
+                page = erplypage;
+            }
+            console.log(erplypage);
+            console.log(page);
+
+            var collectSpan = jQuery('#collect_span_simple');
+            var collectSpanbundle = jQuery('#collect_span_bundle');
+            function syncronize() {
+                params = {
+                    'page': page,
+                    'summary': summary,
+                    'ptype' : pty 
+                };
+                ishit = false;
+                new Ajax.Request('<?php echo $block->getAjaxCheckUrl() ?>', {
+                    loaderArea:     false,
+                    asynchronous:   true,
+                    parameters:     params,
+                    onCreate: function() {
+                            if(pty) {
+                                collectSpanbundle.find('.collected').hide();
+                                collectSpanbundle.find('.processing').show();
+                            } else {
+                                collectSpan.find('.collected').hide();
+                                collectSpan.find('.processing').show();
+                            }
+                        },
+                    onSuccess: function(response) {                   
+                        collectSpan.find('.processing').hide();
+                        var resultText = '';
+                        if (response.status > 200) {
+                            resultText = response.statusText;
+                            jQuery("#popup-modal .consoleResult").append("......");
+                            
+                        } else {
+                            resultText = 'Products have been imported successfully';                            
+                        }
+                       importproductcount = importproductcount + response.responseJSON.data.successRecords;
+                       console.log("--->"+importproductcount);
+                       //jQuery("#popup-modal .importproductcount").text(page*<?php echo  $limit;?>); 
+                        progress = page*100/totalPages;
+                        if(progress > 100) 
+                        {
+                            progress = 100;
+                        }
+                        if(pty) {
+                            jQuery("#popup-modal .pbundle .w3-grey").css("width", progress+"%");
+                        } else {
+                            jQuery("#popup-modal .psimple .w3-grey").css("width", progress+"%");
+                        }
+                        
+                        
+                        if(page == totalPages) {
+                            if(pty) {
+                                collectSpanbundle.find('.collected').show();
+                                collectSpanbundle.find('.processing').hide();
+                                jQuery("#popup-modal .consoleResult").append("Bundle Product Importing completed successfully.. <br>");
+                            } else {
+                                collectSpan.find('.collected').show();
+                                collectSpan.find('.processing').hide();
+                                pty = true;
+                                progress = 0;
+                                page = 0;
+                                jQuery("#popup-modal .consoleResult").append("Simple Product Importing completed successfully.. <br>");
+                            }
+                        }
+                        jQuery("#popup-modal .importproductcount").text(importproductcount);
+                        createCookie('erplypagenumber', "", -1);
+                        createCookie('erplypagenumber', page, 1);               
+                        page++;
+                        ishit = true;
+                    }
+                });
+
+                return;
+            }
+            var popup = modal(options, $('#popup-modal'));
+            $("#imp-pro").on('click',function(){ 
+                $("#popup-modal").modal("openModal");
+                jQuery("#popup-modal .consoleResult").append("Product Importing started.. <br>");
+                setInterval(function(){
+                    if(page <= totalPages &&  ishit) {
+                        console.log(page);
+                        syncronize();   
+                    }
+                }, 3000);    
+            });
+
+            var categorymapping = modal(options, $('#categorymapping'));
+            $("#erplycatmap").on('click',function(){ 
+                $("#categorymapping").modal("openModal");
+                erply_categories();
+            });
+            $("#categorymappingbtn").on('click',function(){ 
+                erply_categories();
+            });
+
+            
+            function erply_categories()
+            {
+                jsonObj = [];
+                $(".mappedcategory").each(function() {
+
+                    var id = $(this).attr("name");
+                    var mcat = $(this).val();
+
+                    item = {}
+                    item ["id"] = id;
+                    item ["mcat"] = mcat;
+
+                    jsonObj.push(item);
+                });
+
+                console.log(jsonObj);
+                params = {
+                    'is_category': true,
+                    'data': JSON.stringify(jsonObj)
+                };
+                new Ajax.Request('<?php echo $block->getAjaxCheckUrl() ?>', {
+                    loaderArea:     false,
+                    asynchronous:   true,
+                    parameters:     params,
+                    onCreate: function() {
+                        jQuery('#resultmapping').text('');
+                    },
+                    onSuccess: function(response) {                   
+                        var resultText = '';
+                        if (response.status > 200) {
+                            resultText = response.statusText;
+                            jQuery('#resultmapping').text(response.responseJSON.message);
+                        } else {
+                            resultText = 'Products have been imported successfully';  
+                        }
+                        jQuery('#resultmapping').text(response.responseJSON.message);
+                    }
+                });
+            }
+        }
+    );
 </script>
